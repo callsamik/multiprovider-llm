@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .async_client import AsyncClient
 from .client import Client
+from .config import config_from_dict, load_config
 from .errors import (
     AllProvidersFailed,
     BudgetExceeded,
@@ -24,6 +25,8 @@ __all__ = [
     "Client",
     "CompletionResult",
     "ConfigError",
+    "config_from_dict",
+    "load_config",
     "Message",
     "MultiproviderError",
     "NoEligibleProviders",

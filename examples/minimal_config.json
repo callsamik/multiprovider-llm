@@ -1,0 +1,44 @@
+{
+  "providers": {
+    "openai": {
+      "enabled": true,
+      "freshness_ok": true,
+      "models": {
+        "simple": "gpt-4o-mini",
+        "standard": "gpt-4o",
+        "complex": "gpt-4o"
+      },
+      "default_model": "gpt-4o-mini",
+      "base_url": "https://api.openai.com/v1",
+      "api_key_env": "OPENAI_API_KEY",
+      "rate_limits": {
+        "max_inflight": 4
+      }
+    },
+    "anthropic": {
+      "enabled": true,
+      "freshness_ok": true,
+      "models": {
+        "standard": "claude-3-5-sonnet-20241022"
+      },
+      "default_model": "claude-3-5-sonnet-20241022",
+      "base_url": "https://api.anthropic.com",
+      "api_key_env": "ANTHROPIC_API_KEY"
+    },
+    "gemini": {
+      "enabled": true,
+      "freshness_ok": true,
+      "models": {
+        "standard": "gemini-2.0-flash"
+      },
+      "default_model": "gemini-2.0-flash",
+      "base_url": "https://generativelanguage.googleapis.com",
+      "api_key_env": "GEMINI_API_KEY"
+    }
+  },
+  "provider_order": ["openai", "anthropic", "gemini"],
+  "tier_routing": {
+    "standard": ["anthropic", "openai", "gemini"]
+  },
+  "global_budget": 16
+}
