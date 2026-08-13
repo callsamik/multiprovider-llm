@@ -204,6 +204,8 @@ class Client:
                 raw=response.raw if include_raw else None,
             )
 
+        if not attempts:
+            raise NoEligibleProviders("no eligible providers after routing filters")
         raise AllProvidersFailed("all providers failed", attempts=tuple(attempts))
 
     def _adapter_for(self, name: str) -> ProviderAdapter:

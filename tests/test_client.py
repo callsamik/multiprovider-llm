@@ -1,6 +1,7 @@
 import pytest
 
 from multiprovider_llm.client import Client
+from multiprovider_llm.limits import CooldownTracker
 from multiprovider_llm.config import LibraryConfig, ProviderConfig
 from multiprovider_llm.errors import (
     AllProvidersFailed,
@@ -96,6 +97,15 @@ def test_auth_stops_chain():
         adapters={"a": FakeAdapter("a", auth), "b": FakeAdapter("b", ok)},
     )
     with pytest.raises(ProviderError):
+        client.complete(prompt="hi")
+
+
+def test_all_providers_cooling_raises_no_eligible():
+    cooldowns = CooldownTracker()
+    for name in ("a", "b"):
+        cooldowns.set_cooldown(name, seconds=60.0)
+    client = Client(_config(("a", "b")), cooldowns=cooldowns, adapters={})
+    with pytest.raises(NoEligibleProviders):
         client.complete(prompt="hi")
 
 
