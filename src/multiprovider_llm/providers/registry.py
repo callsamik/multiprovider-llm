@@ -52,13 +52,31 @@ def _openai_factory() -> ProviderAdapter:
     return OpenAICompatAdapter(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
 
+def _anthropic_factory() -> ProviderAdapter:
+    from .anthropic import AnthropicAdapter
+
+    return AnthropicAdapter(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+
+
+def _gemini_factory() -> ProviderAdapter:
+    from .gemini import GeminiAdapter
+
+    return GeminiAdapter(api_key=os.environ.get("GEMINI_API_KEY", ""))
+
+
 def ensure_builtins_loaded() -> None:
-    """Register built-in factories (openai only in Task 3). Does not construct adapters."""
+    """Register built-in factories without constructing adapters."""
     global _builtins_loaded
     if _builtins_loaded:
         return
     from . import openai_compat as _openai_compat  # noqa: F401
+    from . import anthropic as _anthropic  # noqa: F401
+    from . import gemini as _gemini  # noqa: F401
 
     if "openai" not in _factories:
         register_provider("openai", _openai_factory)
+    if "anthropic" not in _factories:
+        register_provider("anthropic", _anthropic_factory)
+    if "gemini" not in _factories:
+        register_provider("gemini", _gemini_factory)
     _builtins_loaded = True
