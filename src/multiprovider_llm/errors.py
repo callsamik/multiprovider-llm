@@ -37,6 +37,10 @@ class RateLimited(ProviderError):
     pass
 
 
+class BudgetExceeded(MultiproviderError):
+    """Global inflight budget exhausted."""
+
+
 class NoEligibleProviders(MultiproviderError):
     """Chain empty after filters — no HTTP attempts were made."""
 
