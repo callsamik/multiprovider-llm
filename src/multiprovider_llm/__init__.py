@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .async_client import AsyncClient
 from .client import Client
 from .errors import (
     AllProvidersFailed,
@@ -18,6 +19,7 @@ from .types import AttemptRecord, CompletionResult, Message, Usage
 __all__ = [
     "AllProvidersFailed",
     "AttemptRecord",
+    "AsyncClient",
     "BudgetExceeded",
     "Client",
     "CompletionResult",
