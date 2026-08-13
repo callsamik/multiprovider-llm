@@ -1,0 +1,6 @@
+"""multiprovider-llm — multi-provider LLM client (see docs/design.md)."""
+
+from __future__ import annotations
+
+__all__ = ["__version__"]
+__version__ = "0.1.0a1"
