@@ -1,6 +1,6 @@
 # multiprovider-llm — Design Spec (v1)
 
-**Status:** Approved for implementation planning  
+**Status:** v1 implemented — verified against this spec (Task 10, 2026-08-14)  
 **Date:** 2026-08-14  
 **Package:** `multiprovider-llm` (import: `multiprovider_llm`)  
 **Scope:** Greenfield private library. No coupling to Autonomous Investment Navigator (AIN) in v1.
