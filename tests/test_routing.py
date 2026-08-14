@@ -63,3 +63,15 @@ def test_retryability_matrix():
     assert is_retryable(ProviderError("x", status_code=503))
     assert not is_retryable(ProviderError("x", status_code=401))
     assert not is_retryable(ValidationError("bad"))
+
+
+def test_resolve_model_tier_hit():
+    assert resolve_model(_cfg(), "openai", "simple") == "gpt-small"
+    assert resolve_model(_cfg(), "openai", "standard") == "gpt-mid"
+    assert resolve_model(_cfg(), "openai", "complex") == "gpt-big"
+
+
+def test_resolve_model_default_fallback():
+    assert resolve_model(_cfg(), "openai", None) == "gpt-mid"
+    assert resolve_model(_cfg(), "openai", "missing-tier") == "gpt-mid"
+    assert resolve_model(_cfg(), "ollama", "standard") == "qwen"

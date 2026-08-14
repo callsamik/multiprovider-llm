@@ -1,10 +1,11 @@
 import pytest
 
 from multiprovider_llm.client import Client
-from multiprovider_llm.limits import CooldownTracker
+from multiprovider_llm.limits import CooldownTracker, InMemoryLimiter, MemoryReservation, ProviderLimit
 from multiprovider_llm.config import LibraryConfig, ProviderConfig
 from multiprovider_llm.errors import (
     AllProvidersFailed,
+    BudgetExceeded,
     NoEligibleProviders,
     ProviderError,
     RateLimited,
@@ -120,3 +121,63 @@ def test_all_providers_failed():
     with pytest.raises(AllProvidersFailed) as ei:
         client.complete(prompt="hi")
     assert len(ei.value.attempts) == 2
+
+
+class _BudgetOnSecondReserve:
+    """Limiter that admits the first reserve and raises BudgetExceeded on the next."""
+
+    def __init__(self) -> None:
+        self._count = 0
+
+    def try_reserve(self, provider: str, *, tokens: int | None = None) -> MemoryReservation:
+        self._count += 1
+        if self._count >= 2:
+            raise BudgetExceeded("global inflight budget exceeded")
+        return MemoryReservation(provider=provider, token_estimate=tokens)
+
+    def finalize(self, reservation, *, usage) -> None:
+        del reservation, usage
+
+    def release(self, reservation) -> None:
+        del reservation
+
+
+def test_complete_raises_budget_exceeded_on_second_reserve():
+    def fail(_req):
+        raise RateLimited("no", status_code=429, provider="a")
+
+    def ok(_req):
+        return ProviderResponse(text="y", usage=Usage(), status_code=200)
+
+    client = Client(
+        _config(("a", "b")),
+        limiter=_BudgetOnSecondReserve(),
+        adapters={"a": FakeAdapter("a", fail), "b": FakeAdapter("b", ok)},
+    )
+    with pytest.raises(BudgetExceeded):
+        client.complete(prompt="hi")
+
+
+def test_complete_raises_budget_exceeded_when_global_budget_held():
+    limiter = InMemoryLimiter(
+        per_provider={
+            "a": ProviderLimit(max_inflight=4),
+            "b": ProviderLimit(max_inflight=4),
+        },
+        global_budget=1,
+    )
+    held = limiter.try_reserve("a")
+
+    def ok(_req):
+        return ProviderResponse(text="y", usage=Usage(), status_code=200)
+
+    client = Client(
+        _config(("a", "b")),
+        limiter=limiter,
+        adapters={"a": FakeAdapter("a", ok), "b": FakeAdapter("b", ok)},
+    )
+    try:
+        with pytest.raises(BudgetExceeded):
+            client.complete(prompt="hi")
+    finally:
+        limiter.release(held)

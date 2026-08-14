@@ -72,6 +72,11 @@ print(result.provider, result.text)
 
 Async: `AsyncClient.acomplete(...)` with the same parameters.
 
+### v1 accepted but not fully wired
+
+- **`json_schema`**: Accepted and validated (`response_format` must be `"json"`). It is **not sent to providers** on the wire in v1 (experimental / unused). OpenAI-compatible adapters still set `response_format: json_object` when `response_format="json"`; they do not forward `json_schema`.
+- **`max_tokens_per_minute`**: Accepted on provider `rate_limits` in config. **Not enforced** by `InMemoryLimiter` in v1 (only `max_inflight` and optional `global_budget` are).
+
 ## Development
 
 ```bash

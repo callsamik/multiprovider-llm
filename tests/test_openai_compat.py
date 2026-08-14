@@ -54,3 +54,31 @@ def test_openai_include_raw_and_rate_limit():
     with pytest.raises(RateLimited) as ei:
         adapter.complete(req)
     assert len(ei.value.body) <= 500
+
+
+@respx.mock
+async def test_openai_acomplete_ok():
+    respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "async ok"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3},
+            },
+        )
+    )
+    adapter = OpenAICompatAdapter(api_key="sk-test", base_url="https://api.openai.com/v1")
+    req = ProviderRequest(
+        messages=(Message("user", "hi"),),
+        model="gpt-4.1-mini",
+        timeout_s=10.0,
+        response_format="text",
+        json_schema=None,
+        include_raw=True,
+        extras={},
+    )
+    resp = await adapter.acomplete(req)
+    assert resp.text == "async ok"
+    assert resp.usage.total_tokens == 3
+    assert resp.raw is not None
+    assert resp.raw["choices"][0]["message"]["content"] == "async ok"

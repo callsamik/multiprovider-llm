@@ -243,6 +243,7 @@ API keys **only** from environment (never logged). Mark config schema **experime
 | `ConfigError` | Invalid or incomplete configuration |
 | `ProviderError` | Single-provider HTTP/model failure (status, truncated body, headers) |
 | `RateLimited` | Provider signaled rate limit (may also trigger cooldown) |
+| `BudgetExceeded` | Global inflight budget exhausted; orchestrator stops the call |
 | `NoEligibleProviders` | Chain empty after filters / all disabled / none eligible — **no attempts made** |
 | `AllProvidersFailed` | ≥1 attempt made; all failed with retryable (or exhausted) errors |
 

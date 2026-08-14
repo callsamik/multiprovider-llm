@@ -33,3 +33,15 @@ def test_extract_json_from_fence_and_think():
 def test_extract_json_fails_on_plain_text():
     with pytest.raises(ValidationError):
         extract_json_text("not json")
+
+
+def test_extract_json_first_object_from_surrounding_text():
+    result = extract_json_text('Sure! {"a": 1} and also {"b": 2}')
+    assert result == '{"a":1}'
+
+
+def test_extract_json_invalid_object_is_validation_error():
+    with pytest.raises(ValidationError):
+        extract_json_text("{not: valid}")
+    with pytest.raises(ValidationError):
+        extract_json_text("```json\n{not valid}\n```")

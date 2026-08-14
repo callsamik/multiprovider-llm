@@ -164,6 +164,30 @@ async def test_concurrent_acomplete_respects_max_inflight():
     assert failures[0].attempts[0].error_type == "budget"
 
 
+async def test_cancel_in_flight_acomplete_releases_reservation():
+    limiter = InMemoryLimiter(per_provider={"a": ProviderLimit(max_inflight=1)})
+    started = asyncio.Event()
+
+    async def hang(_req):
+        started.set()
+        await asyncio.sleep(3600)
+        return ProviderResponse(text="ok", usage=Usage(), status_code=200)
+
+    client = AsyncClient(
+        _config(("a",)),
+        limiter=limiter,
+        adapters={"a": FakeAsyncAdapter("a", hang)},
+    )
+    task = asyncio.create_task(client.acomplete(prompt="one"))
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    reservation = limiter.try_reserve("a")
+    limiter.release(reservation)
+
+
 def test_async_client_exported():
     from multiprovider_llm import AsyncClient as Exported
 

@@ -59,32 +59,39 @@ class AsyncClient(_ClientCore):
                 continue
             model, request = _build_request(self._config, name, prepared)
             call_started = time.perf_counter()
+            finalized = False
             try:
-                adapter = self._adapter_for(name)
-                response = await adapter.acomplete(request)
-            except Exception as exc:
-                _handle_adapter_exception(
+                try:
+                    adapter = self._adapter_for(name)
+                    response = await adapter.acomplete(request)
+                except Exception as exc:
+                    _handle_adapter_exception(
+                        self._limiter,
+                        self._cooldowns,
+                        reservation,
+                        name,
+                        model,
+                        exc,
+                        call_started,
+                        attempts,
+                    )
+                    finalized = True
+                    continue
+                latency_ms = (time.perf_counter() - call_started) * 1000
+                result = _handle_success(
                     self._limiter,
-                    self._cooldowns,
                     reservation,
                     name,
                     model,
-                    exc,
-                    call_started,
+                    response,
+                    prepared,
                     attempts,
+                    latency_ms,
                 )
-                continue
-            latency_ms = (time.perf_counter() - call_started) * 1000
-            result = _handle_success(
-                self._limiter,
-                reservation,
-                name,
-                model,
-                response,
-                prepared,
-                attempts,
-                latency_ms,
-            )
-            if result is not None:
-                return result
+                finalized = True
+                if result is not None:
+                    return result
+            finally:
+                if not finalized:
+                    self._limiter.release(reservation)
         _raise_if_exhausted(attempts)

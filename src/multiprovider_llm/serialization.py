@@ -40,6 +40,13 @@ _FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL | re.IGNOREC
 
 
 def extract_json_text(text: str) -> str:
+    """Extract a JSON object string from model text.
+
+    Tries a full ``json.loads``, then a fenced ``json`` object, then the
+    first object via ``JSONDecoder.raw_decode`` (so prose such as
+    ``Sure! {"a": 1} and also {"b": 2}`` yields ``{"a":1}``). Parse
+    failures are always ``ValidationError`` — never ``JSONDecodeError``.
+    """
     raw = _THINK_RE.sub("", text or "")
     raw = _THINK_OPEN_RE.sub("", raw).strip()
     if not raw:
@@ -52,12 +59,24 @@ def extract_json_text(text: str) -> str:
         pass
     fence = _FENCE_RE.search(raw)
     if fence:
-        data = json.loads(fence.group(1))
+        try:
+            data = json.loads(fence.group(1))
+        except json.JSONDecodeError:
+            data = None
         if isinstance(data, dict):
             return json.dumps(data, separators=(",", ":"))
-    start, end = raw.find("{"), raw.rfind("}")
-    if start >= 0 and end > start:
-        data = json.loads(raw[start : end + 1])
-        if isinstance(data, dict):
-            return json.dumps(data, separators=(",", ":"))
+    data = _first_json_object(raw)
+    if isinstance(data, dict):
+        return json.dumps(data, separators=(",", ":"))
     raise ValidationError("model response was not a JSON object")
+
+
+def _first_json_object(raw: str) -> Any:
+    start = raw.find("{")
+    if start < 0:
+        return None
+    try:
+        data, _end = json.JSONDecoder().raw_decode(raw, start)
+    except json.JSONDecodeError as exc:
+        raise ValidationError("model response was not a JSON object") from exc
+    return data
