@@ -13,6 +13,7 @@ Multi-provider LLM client with tier routing, fallback chains, and per-provider /
 | **[Tutorial](docs/tutorial.md)** | How to use, configure, connect new agents, and write custom adapters |
 | [Design](docs/design.md) | Approved v1 contracts |
 | [Plan](docs/plan.md) | Implementation task history |
+| [Article](docs/medium-article.md) | Design and implementation write-up |
 
 ## Experimental
 
