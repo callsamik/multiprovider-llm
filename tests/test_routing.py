@@ -1,6 +1,8 @@
+import pytest
+
 from multiprovider_llm.config import LibraryConfig, ProviderConfig
-from multiprovider_llm.routing import resolve_chain, resolve_model, is_retryable
-from multiprovider_llm.errors import ProviderError, RateLimited, ValidationError
+from multiprovider_llm.errors import ConfigError, ProviderError, RateLimited, ValidationError
+from multiprovider_llm.routing import is_retryable, resolve_chain, resolve_model
 
 
 def _cfg():
@@ -47,6 +49,16 @@ def test_explicit_chain_overrides_tier():
     assert chain == ("openai",)
 
 
+def test_explicit_chain_unknown_provider_raises():
+    with pytest.raises(ConfigError, match="unknown provider"):
+        resolve_chain(
+            _cfg(),
+            tier=None,
+            provider_chain=("openai", "not_a_provider"),
+            freshness_required=False,
+        )
+
+
 def test_tier_routing_reorders():
     chain = resolve_chain(_cfg(), tier="standard", provider_chain=None, freshness_required=False)
     assert chain[0] == "anthropic"
@@ -61,6 +73,7 @@ def test_freshness_filters_local():
 def test_retryability_matrix():
     assert is_retryable(RateLimited("x", status_code=429))
     assert is_retryable(ProviderError("x", status_code=503))
+    assert is_retryable(ProviderError("x", status_code=529))  # Anthropic overloaded
     assert not is_retryable(ProviderError("x", status_code=401))
     assert not is_retryable(ValidationError("bad"))
 

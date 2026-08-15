@@ -21,7 +21,8 @@ The following are **experimental** until covered by tests and explicitly unmarke
 
 - **Config file / dict schema** — shape may change; validated strictly (unknown top-level keys are rejected).
 - **`Limiter` protocol** and the default in-memory implementation (`InMemoryLimiter`).
-- **Observability / hooks** interfaces.
+
+**Out of v1 (not implemented):** observability / hooks APIs. Use `CompletionResult.attempts` for audit today.
 
 ## Requirements
 
@@ -45,6 +46,8 @@ Set API keys in the environment (never in config files):
 | Gemini | `GEMINI_API_KEY` |
 
 Reference JSON: [`examples/minimal_config.json`](examples/minimal_config.json).
+
+`Client(config)` applies each builtin provider’s `base_url` and `api_key_env` from config. A missing or empty env value raises `ConfigError` before HTTP. Custom provider names still need `adapters=` or `register_provider` (see the [tutorial](docs/tutorial.md)).
 
 ```python
 from multiprovider_llm import Client, load_config
@@ -78,7 +81,7 @@ uv sync --dev   # or: pip install -e ".[dev]"
 pytest -m "not live"
 ```
 
-Live provider tests are opt-in (`pytest -m live`) and are not required for CI.
+CI runs the same gate on push/PR (Python 3.11–3.13). The `@pytest.mark.live` marker is reserved for optional live provider smoke tests; **none ship in this repo yet**.
 
 ## License
 

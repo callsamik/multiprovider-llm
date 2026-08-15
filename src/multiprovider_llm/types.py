@@ -53,6 +53,7 @@ class ProviderRequest:
     response_format: ResponseFormat
     json_schema: Mapping[str, Any] | None
     include_raw: bool
+    max_tokens: int | None = None
     extras: Mapping[str, Any] = field(default_factory=dict)
 
 

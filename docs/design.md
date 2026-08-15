@@ -58,6 +58,7 @@ result = client.complete(
     freshness_required=False,
     timeout_s=None,
     include_raw=False,
+    max_tokens=None,                 # optional; Anthropic uses this (default 1024)
 )
 
 result = await async_client.acomplete(...)  # same kwargs
@@ -154,7 +155,7 @@ class CompletionResult:
 | Rate limit (429 / provider rate headers) | Continue chain; record cooldown when applicable |
 | Timeouts | Continue chain |
 | Connection failures | Continue chain |
-| Selected 5xx (e.g. 500, 502, 503, 504) | Continue chain |
+| Selected 5xx (e.g. 500, 502, 503, 504) and Anthropic overloaded **529** | Continue chain |
 | Auth failures (401 / 403) | **Stop** immediately |
 | Validation / bad request (400) attributable to caller payload | **Stop** immediately |
 | Configuration errors (missing key, unknown provider in chain) | **Stop** immediately |
@@ -199,7 +200,7 @@ class ProviderAdapter(Protocol):
     async def acomplete(self, req: ProviderRequest) -> ProviderResponse: ...
 ```
 
-`ProviderRequest` fields include: `messages`, `model`, `timeout_s` (units unambiguous), `response_format`, optional `json_schema`, `include_raw`, `extras`.
+`ProviderRequest` fields include: `messages`, `model`, `timeout_s` (units unambiguous), `response_format`, optional `json_schema`, `include_raw`, optional `max_tokens`, `extras`.
 
 **`extras`:** adapters **may ignore** unknown keys; adapters **must not** silently reinterpret keys that collide with common request fields (document reserved names).
 
@@ -262,7 +263,7 @@ multiprovider-llm/
   src/multiprovider_llm/
     __init__.py
     types.py
-    protocols.py          # Limiter, ProviderAdapter, hooks — keep separate from types
+    protocols.py          # Limiter, ProviderAdapter — keep separate from types
     client.py
     async_client.py
     config.py
@@ -280,7 +281,9 @@ multiprovider-llm/
   docs/
 ```
 
-**Experimental (README-labeled until stabilized):** config schema, `Limiter` protocol, observability/hooks.
+**Experimental (README-labeled until stabilized):** config schema, `Limiter` protocol.
+
+**Deferred (not in v1 code):** observability / hooks APIs — callers should use `CompletionResult.attempts` for now.
 
 ---
 
@@ -289,7 +292,7 @@ multiprovider-llm/
 1. **Unit (no network):** routing, validation, serialization, limiter reserve/finalize under threads + asyncio, retryability matrix, registry rules, `NoEligibleProviders` vs `AllProvidersFailed`.
 2. **Adapter contract (httpx mock / respx):** request shape, auth, model resolution, usage parse, truncated errors, `raw` only when opted in.
 3. **Orchestration integration (fake adapters):** fallback, stop-on-auth, attempt records.
-4. **Live smoke (opt-in):** `@pytest.mark.live`; skipped without keys; **excluded from required CI**.
+4. **Live smoke (opt-in, deferred):** `@pytest.mark.live` is reserved and excluded from required CI; no live test modules ship in v1 yet.
 
 Dev tooling: pytest, pytest-asyncio, respx (or httpx MockTransport).
 

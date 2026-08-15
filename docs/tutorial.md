@@ -21,7 +21,7 @@ OpenAI-compatible locals (Ollama, LM Studio, vLLM, Groq, OpenRouter, …) work b
 **reusing** `OpenAICompatAdapter` with another `base_url` — you usually do **not**
 need a new adapter class. Write a custom adapter only for a non-compatible API.
 
-Config schema, `Limiter`, and hooks are **experimental**.
+Config schema and `Limiter` are **experimental**. Observability hooks are **not implemented** in v1 (use `result.attempts`).
 
 ---
 
@@ -193,8 +193,8 @@ Unknown **top-level** keys raise `ConfigError`. Provider entries are also valida
 | `freshness_ok` | If `false`, skipped when `freshness_required=True` (use for local/stale-cutoff models) |
 | `models` | Per-tier model ids (`simple` / `standard` / `complex`) |
 | `default_model` | Used when tier has no entry |
-| `base_url` | Documented endpoint for that provider (builtins use their own defaults in factories today; **inject adapters** when you need a custom URL — see §6–§7) |
-| `api_key_env` | Name of the env var holding the key (never the key itself) |
+| `base_url` | HTTP endpoint root used when `Client` builds the builtin adapter |
+| `api_key_env` | Name of the env var holding the key (never the key itself). Empty string = no key required (some local servers). Missing/blank env value → `ConfigError` |
 | `rate_limits.max_inflight` | Enforced by default `InMemoryLimiter` |
 | `rate_limits.max_tokens_per_minute` | Accepted in config; **not enforced** in v1 |
 | `provider_order` | Default fallback order |
@@ -282,13 +282,15 @@ except ValidationError:
 
 With **no** `adapters=` argument, `Client` resolves names via the lazy registry:
 
-| Name | Env key (factory default) | Notes |
+| Name | Default env key (when called without config) | Notes |
 | :--- | :--- | :--- |
-| `openai` | `OPENAI_API_KEY` | `https://api.openai.com/v1/chat/completions` |
+| `openai` | `OPENAI_API_KEY` | Chat Completions |
 | `anthropic` | `ANTHROPIC_API_KEY` | Messages API |
 | `gemini` | `GEMINI_API_KEY` | `generateContent` |
 
-Those factories currently use each adapter’s **default** `base_url`. Config `base_url` / `api_key_env` document intent and matter for your own wiring; for custom URLs, inject adapters (§7–§8).
+When you use `Client(config)` (no `adapters=`), each builtin is built from that provider’s config: **`base_url`** and **`api_key_env`** are applied. Missing or empty env values raise `ConfigError` before any HTTP call.
+
+Custom names (e.g. `ollama`) are still **not** auto-built — register a factory or pass `adapters=` (§7–§8).
 
 ---
 
@@ -376,22 +378,30 @@ client.complete(prompt="Rewrite this paragraph.", tier="simple", freshness_requi
 
 ### Alternative — `register_provider`
 
+Factories should accept an optional `ProviderConfig` (passed by `Client` when resolving from config):
+
 ```python
-import os
-from multiprovider_llm.providers.registry import register_provider
+from multiprovider_llm.providers.registry import register_provider, resolve_api_key
 from multiprovider_llm.providers.openai_compat import OpenAICompatAdapter
 
-register_provider(
-    "ollama",
-    lambda: OpenAICompatAdapter(
+def _ollama_factory(pcfg=None):
+    import os
+
+    if pcfg is not None:
+        return OpenAICompatAdapter(
+            name=pcfg.name,
+            api_key=resolve_api_key(pcfg.api_key_env),
+            base_url=pcfg.base_url,
+        )
+    return OpenAICompatAdapter(
         name="ollama",
         api_key=os.environ.get("OLLAMA_API_KEY", "ollama"),
         base_url="http://localhost:11434/v1",
-    ),
-    replace=False,
-)
+    )
 
-# Now Client(config) without adapters= can resolve "ollama"
+register_provider("ollama", _ollama_factory)
+
+# Now Client(config) without adapters= can resolve "ollama" using config base_url / api_key_env
 client = Client(config)
 ```
 
@@ -634,8 +644,9 @@ The library is connectivity + routing. Keep domain logic outside:
 | `NoEligibleProviders` | All disabled, filtered by freshness, or cooling with no attempts |
 | `AllProvidersFailed` | Every attempt failed (check `.attempts`) |
 | `ValidationError` on `json_schema` | Used without `response_format="json"` |
+| `ConfigError: missing API key` | Env var named by `api_key_env` unset/empty |
 | Local model used for “live” asks | Forgot `freshness_ok: false` or passed `freshness_required=False` |
-| Custom `base_url` in JSON ignored | Builtin factory ignores config URL — inject `OpenAICompatAdapter` |
+| Custom-named provider (`ollama`, …) not found | Register a factory or pass `adapters=` (builtins only auto-wire from config) |
 | Double-release warnings with custom limiter | Ensure `release` is idempotent (default limiter is) |
 
 ---

@@ -1,16 +1,20 @@
 import pytest
+import httpx
+import respx
 
 from multiprovider_llm.client import Client
-from multiprovider_llm.limits import CooldownTracker, InMemoryLimiter, MemoryReservation, ProviderLimit
-from multiprovider_llm.config import LibraryConfig, ProviderConfig
+from multiprovider_llm.config import LibraryConfig, ProviderConfig, config_from_dict
 from multiprovider_llm.errors import (
     AllProvidersFailed,
     BudgetExceeded,
+    ConfigError,
     NoEligibleProviders,
     ProviderError,
     RateLimited,
     ValidationError,
 )
+from multiprovider_llm.limits import CooldownTracker, InMemoryLimiter, MemoryReservation, ProviderLimit
+from multiprovider_llm.providers import registry
 from multiprovider_llm.types import ProviderRequest, ProviderResponse, Usage
 
 
@@ -181,3 +185,80 @@ def test_complete_raises_budget_exceeded_when_global_budget_held():
             client.complete(prompt="hi")
     finally:
         limiter.release(held)
+
+
+@respx.mock
+def test_client_uses_config_base_url_and_api_key_env(monkeypatch):
+    """Builtin path must honor ProviderConfig.base_url and api_key_env."""
+    registry._clear_for_tests()
+    monkeypatch.setenv("CUSTOM_OPENAI_KEY", "sk-from-config")
+    cfg = config_from_dict(
+        {
+            "providers": {
+                "openai": {
+                    "enabled": True,
+                    "freshness_ok": True,
+                    "models": {"standard": "gpt-test"},
+                    "default_model": "gpt-test",
+                    "base_url": "https://llm.example.test/v1",
+                    "api_key_env": "CUSTOM_OPENAI_KEY",
+                }
+            },
+            "provider_order": ["openai"],
+        }
+    )
+    route = respx.post("https://llm.example.test/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "wired"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            },
+        )
+    )
+    client = Client(cfg)
+    result = client.complete(prompt="hi", provider_chain=["openai"])
+    assert result.text == "wired"
+    assert route.called
+    assert route.calls.last.request.headers["Authorization"] == "Bearer sk-from-config"
+
+
+def test_client_missing_config_api_key_raises(monkeypatch):
+    registry._clear_for_tests()
+    monkeypatch.delenv("MISSING_KEY_FOR_TEST", raising=False)
+    cfg = config_from_dict(
+        {
+            "providers": {
+                "openai": {
+                    "enabled": True,
+                    "freshness_ok": True,
+                    "models": {"standard": "gpt-test"},
+                    "default_model": "gpt-test",
+                    "base_url": "https://api.openai.com/v1",
+                    "api_key_env": "MISSING_KEY_FOR_TEST",
+                }
+            },
+            "provider_order": ["openai"],
+        }
+    )
+    client = Client(cfg)
+    with pytest.raises(ConfigError, match="MISSING_KEY_FOR_TEST"):
+        client.complete(prompt="hi")
+
+
+def test_complete_passes_max_tokens_on_request():
+    seen: list[ProviderRequest] = []
+
+    def ok(req: ProviderRequest):
+        seen.append(req)
+        return ProviderResponse(text="y", usage=Usage(), status_code=200)
+
+    client = Client(_config(("a",)), adapters={"a": FakeAdapter("a", ok)})
+    client.complete(prompt="hi", max_tokens=4096)
+    assert seen[0].max_tokens == 4096
+
+
+def test_complete_rejects_non_positive_max_tokens():
+    client = Client(_config(("a",)), adapters={"a": FakeAdapter("a", lambda r: None)})
+    with pytest.raises(ValidationError, match="max_tokens"):
+        client.complete(prompt="hi", max_tokens=0)

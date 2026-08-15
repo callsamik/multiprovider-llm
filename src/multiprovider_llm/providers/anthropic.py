@@ -1,10 +1,11 @@
 """Anthropic Messages API adapter.
 
 Reserved ``extras`` keys (must not be reinterpreted):
-``model``, ``messages``, ``timeout_s``, ``response_format``, ``json_schema``.
+``model``, ``messages``, ``timeout_s``, ``response_format``, ``json_schema``,
+``max_tokens``.
 
-Unknown extras keys are ignored. ``max_tokens`` is a fixed default and is
-never read from extras.
+Unknown extras keys are ignored. ``max_tokens`` comes from
+``ProviderRequest.max_tokens`` (default ``DEFAULT_MAX_TOKENS`` when unset).
 """
 
 from __future__ import annotations
@@ -65,7 +66,7 @@ class AnthropicAdapter:
 
     def _payload(self, req: ProviderRequest) -> dict[str, Any]:
         # Ignore extras entirely: unknown keys are dropped; reserved keys
-        # stay on req. max_tokens is a constant, never taken from extras.
+        # stay on req. max_tokens comes from ProviderRequest.max_tokens.
         messages = list(req.messages)
         system: str | None = None
         if messages and messages[0].role == "system":
@@ -73,7 +74,7 @@ class AnthropicAdapter:
             messages = messages[1:]
         body: dict[str, Any] = {
             "model": req.model,
-            "max_tokens": DEFAULT_MAX_TOKENS,
+            "max_tokens": req.max_tokens if req.max_tokens is not None else DEFAULT_MAX_TOKENS,
             "messages": [
                 {
                     "role": m.role if m.role in {"user", "assistant"} else "user",

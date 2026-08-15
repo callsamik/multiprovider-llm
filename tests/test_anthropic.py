@@ -86,3 +86,17 @@ async def test_anthropic_acomplete_ok():
     assert resp.usage.prompt_tokens is None
     assert resp.raw is not None
     assert resp.raw["content"][0]["text"] == "async ok"
+
+
+@respx.mock
+def test_anthropic_respects_request_max_tokens():
+    route = respx.post(MESSAGES_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={"content": [{"type": "text", "text": "ok"}]},
+        )
+    )
+    adapter = AnthropicAdapter(api_key="sk-ant-test")
+    adapter.complete(_req(max_tokens=4096))
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["max_tokens"] == 4096

@@ -1,10 +1,10 @@
-# Building multiprovider-llm: A Production-Ready Multi-LLM Client
+# Building multiprovider-llm: A Multi-LLM Client from Production Patterns
 
 ## Introduction
 
-Over the past year, I've built the **Autonomous Investment Navigator** (AIN) — a Python-based research laboratory for evidence-driven investment discovery. A core challenge has been safely routing financial research prompts across multiple LLM providers (Gemini, Groq, OpenRouter, OpenAI, Anthropic, and local Ollama models) with deterministic fallback logic, per-provider budgets, and cost control.
+Over the past year, I've built the **Autonomous Investment Navigator** (AIN) — a Python-based research laboratory for evidence-driven investment discovery. A core challenge has been safely routing financial research prompts across multiple LLM providers with deterministic fallback logic, per-provider budgets, and cost control.
 
-What started as internal infrastructure in AIN's Layer 21 evolved into something larger: **multiprovider-llm**, a standalone, production-ready Python library that abstracts multi-provider LLM connectivity.
+Patterns proven in AIN's Layer 21 inspired a greenfield library: **multiprovider-llm**, a standalone Python package (public alpha) that owns multi-provider LLM orchestration. v1 ships builtins for OpenAI, Anthropic, and Gemini; Groq, OpenRouter, and Ollama reuse the OpenAI-compatible adapter via config + registration.
 
 This article walks through the design, implementation, and lessons learned.
 
@@ -272,18 +272,17 @@ class ProviderAdapter:
 **Anthropic** (anthropic.py):
 - Messages API (not legacy Completions)
 - Different auth header (x-api-key)
-- Different error codes (429, 529)
-- Different usage reporting
+- Retryable overloaded responses (`529`) plus standard 5xx / `429`
+- Different usage reporting; `max_tokens` from the request (default 1024)
 
 **Gemini** (gemini.py):
 - generateContent endpoint
-- Key in URL, not header
-- `HarmBlockThreshold` / `HarmCategory` safety filters
-- Converts Message → Content format
+- Key in URL query param, not header
+- Converts Message → Content format (system text prefixed into the first user turn)
 
 **`config.py` — Configuration**
 ```python
-@dataclass(frozen=True)
+@dataclass
 class ProviderConfig:
     name: str
     enabled: bool
@@ -294,7 +293,7 @@ class ProviderConfig:
     api_key_env: str
     rate_limits: ProviderLimit | None
 
-@dataclass(frozen=True)
+@dataclass
 class LibraryConfig:
     providers: dict[str, ProviderConfig]
     provider_order: tuple[str, ...]
@@ -304,8 +303,9 @@ class LibraryConfig:
 
 Validation:
 - Unknown top-level keys are rejected (strict mode)
-- Provider names in tier_routing must be valid
-- All enabled remote providers must appear in each tier_routing entry
+- Provider names in `provider_order` / `tier_routing` must exist in `providers`
+- Runtime `provider_chain` unknown names raise `ConfigError`
+- `Client(config)` applies each builtin’s `base_url` and `api_key_env` (missing keys fail fast)
 
 **`errors.py` — Typed Exceptions**
 - `ValidationError` (bad kwargs)
@@ -320,7 +320,7 @@ Validation:
 
 ## Testing Strategy
 
-12 test files covering:
+Eleven test modules covering:
 
 - **Unit Tests (no network)**
   - `test_routing.py` — chain resolution, tier routing, freshness filtering
@@ -331,23 +331,20 @@ Validation:
 
 - **Adapter Contract Tests (respx mocks)**
   - `test_openai_compat.py` — request shape, auth header, model resolution, error parsing
-  - `test_anthropic.py` — Messages API format, x-api-key header
-  - `test_gemini.py` — generateContent format, safety filters
+  - `test_anthropic.py` — Messages API format, x-api-key header, `max_tokens`
+  - `test_gemini.py` — generateContent format and message mapping
 
 - **Integration Tests**
-  - `test_client.py` — fallback, stop-on-auth, attempt records, budget exhaustion
+  - `test_client.py` — fallback, stop-on-auth, attempt records, budget exhaustion, config wiring
   - `test_async_client.py` — async fallback, same error handling
   - `test_config_load.py` — JSON parsing, validation
 
-- **Live Smoke Tests (opt-in)**
-  - Marked `@pytest.mark.live`, excluded from required CI
-  - Requires actual API keys
-  - Useful for pre-release validation but not blocking
+- **Live Smoke Tests**
+  - `@pytest.mark.live` is reserved and excluded from CI; **no live modules ship yet**
 
 Run:
 ```bash
-pytest -m "not live"                 # all required tests
-pytest -m live                       # live provider smoke tests
+pytest -m "not live"                 # required gate (also run in GitHub Actions)
 pytest -v --tb=short tests/          # detailed output
 ```
 
@@ -477,16 +474,16 @@ Intentionally deferred:
 - **Streaming** — Would require redesigning the result type (iterator vs. single value)
 - **Vision / Multimodal** — Requires image input handling; adding later is feasible
 - **Distributed Limiters** — Redis backend via Limiter protocol; low priority for single-user systems
-- **Observability Hooks** — Placeholder for future integration (on_attempt_recorded, etc.)
-- **Groq/OpenRouter Presets** — Config examples exist; formal entries wait for adoption feedback
+- **Observability Hooks** — Not implemented in v1; use `CompletionResult.attempts`
+- **Groq/OpenRouter Presets** — Reuse `OpenAICompatAdapter`; formal builtins wait for adoption feedback
 
-All marked **experimental** in the README until stabilized by actual usage.
+Config schema and `Limiter` remain **experimental** in the README until stabilized by usage.
 
 ---
 
 ## Integration with Autonomous Investment Navigator
 
-multiprovider-llm was extracted from AIN's Layer 21. Future integration:
+multiprovider-llm is **inspired by** AIN Layer 21 patterns, not a line-for-line extraction (AIN keeps domain prompts, schemas, and product policy). Future integration:
 
 - **Adopt as sibling dependency**
   ```toml
@@ -539,12 +536,12 @@ pytest -m "not live"
 
 **What's included:**
 - Full design specification (docs/design.md)
-- README with examples
-- 12 comprehensive test files
-- 3 production adapters (OpenAI, Anthropic, Gemini)
+- Tutorial + README with examples
+- Eleven test modules + GitHub Actions CI
+- Three adapters (OpenAI-compat, Anthropic, Gemini)
 - MIT license
 
-**Status:** v0.1.0a1 — Production ready, experimentals labeled, ready for adoption.
+**Status:** v0.1.0a1 — public alpha; experimental surfaces labeled; suitable for early adoption with eyes open.
 
 ---
 

@@ -81,6 +81,7 @@ class _PreparedCall:
     json_schema: Mapping[str, Any] | None
     timeout_s: float | None
     include_raw: bool
+    max_tokens: int | None
 
 
 def _prepare_call(
@@ -95,10 +96,13 @@ def _prepare_call(
     freshness_required: bool,
     timeout_s: float | None,
     include_raw: bool,
+    max_tokens: int | None,
 ) -> _PreparedCall:
     started = time.perf_counter()
     if json_schema is not None and response_format != "json":
         raise ValidationError("json_schema requires response_format='json'")
+    if max_tokens is not None and (not isinstance(max_tokens, int) or max_tokens <= 0):
+        raise ValidationError("max_tokens must be a positive integer when set")
 
     normalized = tuple(normalize_messages(prompt=prompt, messages=messages))
     chain = resolve_chain(
@@ -118,6 +122,7 @@ def _prepare_call(
         json_schema=json_schema,
         timeout_s=timeout_s,
         include_raw=include_raw,
+        max_tokens=max_tokens,
     )
 
 
@@ -161,6 +166,7 @@ def _build_request(
         response_format=prepared.response_format,
         json_schema=prepared.json_schema,
         include_raw=prepared.include_raw,
+        max_tokens=prepared.max_tokens,
     )
     return model, request
 
@@ -276,7 +282,10 @@ class _ClientCore:
             return adapter
         found = self._resolved.get(name)
         if found is None:
-            found = get_provider(name)
+            pcfg = self._config.providers.get(name)
+            if pcfg is None:
+                raise ConfigError(f"unknown provider in config: {name!r}")
+            found = get_provider(name, provider_config=pcfg)
             self._resolved[name] = found
         return found
 
@@ -294,6 +303,7 @@ class Client(_ClientCore):
         freshness_required: bool = False,
         timeout_s: float | None = None,
         include_raw: bool = False,
+        max_tokens: int | None = None,
     ) -> CompletionResult:
         prepared = _prepare_call(
             self._config,
@@ -306,6 +316,7 @@ class Client(_ClientCore):
             freshness_required=freshness_required,
             timeout_s=timeout_s,
             include_raw=include_raw,
+            max_tokens=max_tokens,
         )
         attempts: list[AttemptRecord] = []
         for name in prepared.chain:

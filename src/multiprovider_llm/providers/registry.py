@@ -1,6 +1,8 @@
 """Lazy provider factory registry.
 
 Built-ins are registered without constructing adapters that need API keys.
+When resolving via ``Client``, pass ``provider_config`` so ``base_url`` /
+``api_key_env`` from config are applied.
 """
 
 from __future__ import annotations
@@ -10,13 +12,21 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+from ..config import ProviderConfig
 from ..errors import ConfigError
 from ..protocols import ProviderAdapter
 
 _NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
-_factories: dict[str, Callable[[], Any]] = {}
+_factories: dict[str, Callable[..., Any]] = {}
 _builtins_loaded = False
+
+# Default env names when get_provider is called without ProviderConfig.
+_DEFAULT_API_KEY_ENV = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+}
 
 
 def _clear_for_tests() -> None:
@@ -25,9 +35,27 @@ def _clear_for_tests() -> None:
     _builtins_loaded = False
 
 
+def resolve_api_key(api_key_env: str) -> str:
+    """Resolve an API key from the environment.
+
+    Empty ``api_key_env`` means no key required (e.g. some local servers) and
+    returns ``\"\"``. A non-empty env name that is unset or blank raises
+    ``ConfigError``.
+    """
+    name = (api_key_env or "").strip()
+    if not name:
+        return ""
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise ConfigError(
+            f"missing API key: environment variable {name!r} is not set or empty"
+        )
+    return value
+
+
 def register_provider(
     name: str,
-    factory: Callable[[], Any],
+    factory: Callable[..., Any],
     *,
     replace: bool = False,
 ) -> None:
@@ -38,30 +66,54 @@ def register_provider(
     _factories[name] = factory
 
 
-def get_provider(name: str) -> ProviderAdapter:
+def get_provider(
+    name: str,
+    *,
+    provider_config: ProviderConfig | None = None,
+) -> ProviderAdapter:
     ensure_builtins_loaded()
     factory = _factories.get(name)
     if factory is None:
         raise ConfigError(f"unknown provider: {name}")
-    return factory()
+    if provider_config is not None:
+        return factory(provider_config)
+    return factory(None)
 
 
-def _openai_factory() -> ProviderAdapter:
+def _openai_factory(provider_config: ProviderConfig | None = None) -> ProviderAdapter:
     from .openai_compat import OpenAICompatAdapter
 
-    return OpenAICompatAdapter(api_key=os.environ.get("OPENAI_API_KEY", ""))
+    if provider_config is not None:
+        return OpenAICompatAdapter(
+            name=provider_config.name,
+            api_key=resolve_api_key(provider_config.api_key_env),
+            base_url=provider_config.base_url or None,
+        )
+    return OpenAICompatAdapter(api_key=resolve_api_key(_DEFAULT_API_KEY_ENV["openai"]))
 
 
-def _anthropic_factory() -> ProviderAdapter:
+def _anthropic_factory(provider_config: ProviderConfig | None = None) -> ProviderAdapter:
     from .anthropic import AnthropicAdapter
 
-    return AnthropicAdapter(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    if provider_config is not None:
+        return AnthropicAdapter(
+            name=provider_config.name,
+            api_key=resolve_api_key(provider_config.api_key_env),
+            base_url=provider_config.base_url or None,
+        )
+    return AnthropicAdapter(api_key=resolve_api_key(_DEFAULT_API_KEY_ENV["anthropic"]))
 
 
-def _gemini_factory() -> ProviderAdapter:
+def _gemini_factory(provider_config: ProviderConfig | None = None) -> ProviderAdapter:
     from .gemini import GeminiAdapter
 
-    return GeminiAdapter(api_key=os.environ.get("GEMINI_API_KEY", ""))
+    if provider_config is not None:
+        return GeminiAdapter(
+            name=provider_config.name,
+            api_key=resolve_api_key(provider_config.api_key_env),
+            base_url=provider_config.base_url or None,
+        )
+    return GeminiAdapter(api_key=resolve_api_key(_DEFAULT_API_KEY_ENV["gemini"]))
 
 
 def ensure_builtins_loaded() -> None:

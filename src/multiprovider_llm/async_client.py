@@ -37,6 +37,7 @@ class AsyncClient(_ClientCore):
         freshness_required: bool = False,
         timeout_s: float | None = None,
         include_raw: bool = False,
+        max_tokens: int | None = None,
     ) -> CompletionResult:
         prepared = _prepare_call(
             self._config,
@@ -49,6 +50,7 @@ class AsyncClient(_ClientCore):
             freshness_required=freshness_required,
             timeout_s=timeout_s,
             include_raw=include_raw,
+            max_tokens=max_tokens,
         )
         attempts: list[AttemptRecord] = []
         for name in prepared.chain:

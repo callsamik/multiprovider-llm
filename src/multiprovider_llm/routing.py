@@ -11,7 +11,7 @@ from .errors import (
     ValidationError,
 )
 
-_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
+_RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504, 529})
 
 
 def resolve_chain(
@@ -22,6 +22,9 @@ def resolve_chain(
     freshness_required: bool,
 ) -> tuple[str, ...]:
     if provider_chain is not None:
+        for name in provider_chain:
+            if name not in config.providers:
+                raise ConfigError(f"unknown provider in provider_chain: {name!r}")
         return _filter_names(config, provider_chain, freshness_required)
 
     base = _filter_names(config, config.provider_order, freshness_required)

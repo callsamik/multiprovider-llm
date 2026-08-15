@@ -44,7 +44,7 @@ include = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 markers = [
-  "live: optional live provider smoke tests (excluded from required CI)",
+  "live: reserved for optional live provider smoke tests (none ship yet; excluded from CI)",
 ]
 testpaths = ["tests"]
 
