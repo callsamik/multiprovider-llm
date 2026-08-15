@@ -1,9 +1,16 @@
-# `artifact-store` extraction survey and standalone design
+# `artifact-store` extraction survey and standalone design (cancelled)
 
 **Date:** 2026-08-15  
-**Status:** Provisional design; no AIN integration performed  
-**Package:** `artifact-store`  
-**Import:** `artifact_store`
+**Status:** **Cancelled** (2026-08-15) — will not implement; retained as historical survey only  
+**Package:** `artifact-store` (not shipped)  
+**Import:** `artifact_store`  
+**Resolved design (also cancelled):** [docs/superpowers/specs/2026-08-15-artifact-store-design.md](../superpowers/specs/2026-08-15-artifact-store-design.md)
+
+### Cancellation reason
+
+Not required for `multiprovider-llm`. AIN already ships `ain.knowledge_base`. No
+reuse demand or contract deficiency warrants extracting a standalone package.
+See the resolved design’s cancellation banner for the same decision.
 
 ## 1. Executive summary
 
@@ -13,10 +20,10 @@ an in-memory implementation, an append-only SQLite implementation, provider
 metadata, TTL projection hooks, and JSON round-tripping. The storage contract is
 extractable, but the current models mix generic storage with AIN policy.
 
-The proposed package extracts only the generic repository kernel. AIN remains the
-owner of symbols, investment namespaces, `CompanyKnowledge`, market/news meaning,
-portfolio decisions, and namespace allowlists. This document is a design target,
-not an implementation plan for modifying AIN.
+The proposed package would have extracted only the generic repository kernel. AIN
+remains the owner of symbols, investment namespaces, `CompanyKnowledge`,
+market/news meaning, portfolio decisions, and namespace allowlists. This survey
+is historical only — not an open design target.
 
 ## 2. Short extraction survey
 
@@ -168,6 +175,9 @@ fields. Secrets must not be serialized accidentally by providers.
 
 ## 8. Open decisions before implementation
 
+Resolved in the cancelled design spec, then abandoned with that design. Historical
+list only:
+
 1. Whether `confidence` is optional (recommended) or required for compatibility
    with AIN's current model.
 2. Whether duplicate/conflict items are non-fatal results (recommended) or raise
@@ -178,12 +188,13 @@ fields. Secrets must not be serialized accidentally by providers.
    mirror a sync API.
 5. Whether content hashes are first-class fields or remain provider metadata.
 
-## 9. Extraction acceptance criteria
+## 9. Extraction acceptance criteria — cancelled
 
-Before any AIN integration, a standalone package should have parity tests for
-memory and SQLite covering: identical duplicate, same-ID conflict, append-only
-history, higher/lower version pointer behavior, transaction rollback, arbitrary
-namespaces, provider metadata round-trip, JSON round-trip, and injected validity
-policy behavior. AIN changes, import rewrites, and namespace adapters are a
-separate follow-up proposal.
+Had extraction proceeded, before any AIN integration a standalone package would
+have needed parity tests for memory and SQLite covering: identical duplicate,
+same-ID conflict, append-only history, higher/lower version pointer behavior,
+transaction rollback, arbitrary namespaces, provider metadata round-trip, JSON
+round-trip, and injected validity policy behavior. AIN changes, import rewrites,
+and namespace adapters remain out of scope — and no extraction follow-up is
+scheduled.
 

@@ -1,16 +1,24 @@
-# `artifact_store` standalone design (resolved)
+# `artifact_store` standalone design (cancelled)
 
 **Date:** 2026-08-15  
-**Status:** Resolved design; implementation targeted at a **new repository**  
-**Package:** `artifact-store`  
+**Status:** **Cancelled** (2026-08-15) — will not implement; retained as historical design only  
+**Package:** `artifact-store` (not shipped)  
 **Import:** `artifact_store`  
 **Precursor:** [docs/proposals/2026-08-15-artifact-store-extraction-survey-and-design.md](../../proposals/2026-08-15-artifact-store-extraction-survey-and-design.md)
 
-This document freezes the open decisions from the extraction survey into an
-implementable contract. It does **not** authorize changes to
-`multiprovider-llm` package code or to AIN. Implementation, packaging, and
-tests belong in a separate repository so this project remains a single-package
-distribution.
+### Cancellation reason
+
+Not required for `multiprovider-llm` (LLM call execution only). AIN already owns
+an append-only Research Knowledge Base (`ain.knowledge_base`). No second consumer
+or OV/contract gap justifies a standalone extraction. Do **not** schedule a new
+repo, AIN adapter cutover, or library packaging work from this doc.
+
+---
+
+This document froze survey decisions into an implementable contract. It did
+**not** authorize changes to `multiprovider-llm` package code or to AIN.
+Implementation was targeted at a separate repository so this project remains a
+single-package distribution — that path is cancelled.
 
 ## 1. Locked decisions
 
@@ -225,10 +233,10 @@ providers into stored metadata.
 
 The store ships no built-in domain freshness rules.
 
-## 8. Acceptance criteria (new repository)
+## 8. Acceptance criteria (new repository) — cancelled
 
-Before any AIN integration, the standalone package must have parity tests for
-memory and SQLite covering:
+Had this path proceeded, before any AIN integration the standalone package would
+have needed parity tests for memory and SQLite covering:
 
 * Identical re-ingest → duplicate.
 * Same ID, different canonical body → conflict; original unchanged.
@@ -251,8 +259,7 @@ package exists.
 
 ## 9. Explicit non-goals for multiprovider-llm
 
-This repository may hold survey and design documentation only for
-`artifact_store`. It must not grow a second installable package under
-`src/` for this work. Implementation plans may be added later under
-`docs/superpowers/plans/` once this spec is approved for execution in the new
-repo.
+This repository may hold cancelled survey/design documentation only for
+`artifact_store`. It must not grow a second installable package under `src/`
+for this work. No implementation plan under `docs/superpowers/plans/` should be
+opened from this cancelled design.
