@@ -172,8 +172,7 @@ Unknown **top-level** keys raise `ConfigError`. Provider entries are also valida
       "base_url": "https://api.openai.com/v1",
       "api_key_env": "OPENAI_API_KEY",
       "rate_limits": {
-        "max_inflight": 4,
-        "max_tokens_per_minute": 100000
+        "max_inflight": 4
       }
     }
   },
@@ -195,8 +194,8 @@ Unknown **top-level** keys raise `ConfigError`. Provider entries are also valida
 | `default_model` | Used when tier has no entry |
 | `base_url` | HTTP endpoint root used when `Client` builds the builtin adapter |
 | `api_key_env` | Name of the env var holding the key (never the key itself). Empty string = no key required (some local servers). Missing/blank env value → `ConfigError` |
-| `rate_limits.max_inflight` | Enforced by default `InMemoryLimiter` |
-| `rate_limits.max_tokens_per_minute` | Parsed for forward-compat; **deferred — not enforced** (v1 = inflight only) |
+| `rate_limits.max_inflight` | Enforced by default `InMemoryLimiter` (concurrency only) |
+| `rate_limits.*` other keys | Rejected (`ConfigError`) — no TPM / token-window config in 0.1.0 |
 | `provider_order` | Default fallback order |
 | `tier_routing` | Preferred lead order per tier (remainder keep relative order from `provider_order`) |
 | `global_budget` | Optional process-wide inflight ceiling |
@@ -591,10 +590,11 @@ client = Client(config)  # resolves "echo" from registry
 
 ## 9. Limits and cooldowns (experimental)
 
-Default limiter: process-local `InMemoryLimiter`.
+Default limiter: **process-local** `InMemoryLimiter` (one instance → one process; multi-process coordination is caller-owned).
 
 - Per-provider `max_inflight` from config `rate_limits` (default `1` if omitted in the constructed default limiter path — prefer setting explicitly).
 - Optional `global_budget` across providers.
+- **Concurrency only** — no public TPM / token-window config. Unknown `rate_limits` keys (including `max_tokens_per_minute`) raise `ConfigError`.
 - Atomic **reserve → finalize (success) / release (failure or cancel)**.
 - HTTP `429` triggers a cooldown so that provider is skipped briefly on later calls.
 
@@ -605,6 +605,8 @@ try_reserve(provider, *, tokens=None) -> Reservation
 finalize(reservation, *, usage: Usage) -> None
 release(reservation) -> None
 ```
+
+(`tokens` / `usage` exist for injected token-window limiters; the default ignores them.)
 
 ```python
 from multiprovider_llm.limits import InMemoryLimiter, ProviderLimit

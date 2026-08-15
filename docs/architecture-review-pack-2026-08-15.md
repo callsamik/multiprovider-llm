@@ -1,15 +1,14 @@
 # multiprovider-llm — Architecture Design Review Pack
 
 **Audience:** Principal / staff architect (design modification review)  
-**Status:** As-built snapshot for review (not a change proposal until decisions land)  
+**Status:** **Decided** — see [`decisions/2026-08-15-architecture-freeze-0.1.0.md`](decisions/2026-08-15-architecture-freeze-0.1.0.md) (Q1–Q10 accepted 2026-08-15). This pack remains the as-built critique input.  
 **Date:** 2026-08-15  
 **Package:** `multiprovider-llm` (import `multiprovider_llm`)  
 **Version:** `0.1.0a1` public alpha  
-**Reference commit (AIN pin):** `dfe8f27` — *fix: record stop-path attempts; clarify TPM deferred*  
-**Normative contracts:** [`design.md`](design.md) (v1), [`proposals/2026-08-15-generic-policy-hooks-design.md`](proposals/2026-08-15-generic-policy-hooks-design.md) (v1.1)  
+**Normative contracts:** [`design.md`](design.md) (v1), [`proposals/2026-08-15-generic-policy-hooks-design.md`](proposals/2026-08-15-generic-policy-hooks-design.md) (v1.1), [architecture freeze ADR](decisions/2026-08-15-architecture-freeze-0.1.0.md)  
 **Repo:** https://github.com/callsamik/multiprovider-llm  
 
-This document restates the **as-built** architecture so a principal architect can critique boundaries, suggest modifications, and prioritize deferred work. Where this pack and `design.md` diverge, **`design.md` remains the frozen v1 contract** until an explicit ADR updates it.
+This document restates the **as-built** architecture so a principal architect can critique boundaries, suggest modifications, and prioritize deferred work. **Decisions are recorded in the ADR**; where this pack and the ADR diverge, the ADR wins.
 
 ---
 
@@ -63,7 +62,7 @@ AIN previously duplicated much of this in Layer 21. The library extracts the **c
 | Built-in Groq / OpenRouter / Ollama *presets* as first-class named builtins | Same `OpenAICompatAdapter` + config/`adapters=` / `register_provider` today (AIN already wires them) |
 | Distributed / Redis limiters | Protocol allows injection later |
 | Streaming, vision, tool-calling as product features | Separate milestones |
-| Enforcing TPM in the default limiter | Config accepts `max_tokens_per_minute` but **does not enforce** it (explicitly deferred) |
+| Enforcing TPM in the default limiter | **Resolved (ADR):** stripped from public config; concurrency-only default |
 | Forwarding `json_schema` on the wire | Validated locally; wire-forward deferred |
 | Durable disk quota / cooldown files | Caller-owned (AIN uses `data/ai_limits/`) |
 
@@ -136,7 +135,7 @@ Approximate size at `dfe8f27`: ~1.7k LOC under `src/multiprovider_llm/`; **73** 
 | Fallback order / tier reorder | ✓ | supplies config / `provider_chain` |
 | Freshness boolean filter | ✓ | sets `freshness_ok` + `freshness_required` |
 | Inflight concurrency (default) | ✓ | may inject `Limiter` |
-| TPM / durable quotas |  | ✓ (until library TPM ships) |
+| TPM / durable quotas |  | ✓ (caller-owned; library has no public TPM config) |
 | Prompts / domain JSON schema |  | ✓ |
 | Product “skip brief / FREE_ONLY” |  | ✓ |
 | Disk cooldown files |  | ✓ (AIN); library has **in-process** cooldown only |
@@ -278,7 +277,7 @@ release(reservation) -> None
 
 - Enforces **`max_inflight` per provider**
 - Optional **`global_budget`** (global inflight count)
-- Accepts but **ignores** `max_tokens_per_minute` and `usage` for accounting (**TPM deferred**)
+- Accepts but **ignores** `usage` for accounting (default = inflight only; no public TPM config)
 - Process-local only
 
 ### 8.2 Cooldowns
@@ -287,7 +286,7 @@ In-process per-provider cooldown after rate limits (`Retry-After` when present, 
 
 ### 8.3 Architect attention point
 
-Config advertises TPM-like fields while runtime does not enforce them. That is intentional and documented, but it is a **footgun** for new callers. Options for review: remove from public config until implemented, or implement a token window, or rename fields to `experimental_*`.
+Config no longer advertises TPM-like fields. Default limiter = concurrency only. Token windows require an injected `Limiter` with an explicit contract (ADR Q3).
 
 ---
 
@@ -351,7 +350,7 @@ This dual-layer limit story (library inflight + AIN disk/spend) is a deliberate 
 
 | Item | Status | Notes |
 | :--- | :--- | :--- |
-| TPM / token-window limiter | Deferred | Config field present; not enforced |
+| TPM / token-window limiter | Out until caller need | No public config; protocol `tokens`/`usage` retained for injection |
 | `json_schema` wire-forward | Deferred | Local validation only |
 | Named presets (Groq/OR/Ollama) | Optional later | Adapter already works |
 | Streaming / tools / vision | Out | |
@@ -460,4 +459,4 @@ Preferred artifacts after review:
 **Is not:** prompt framework, RAG, agent runtime, spend accounting, or investment logic.  
 **Extend by:** `ProviderAdapter` + `register_provider` / `adapters=`; inject `Limiter` / `CompletionHooks`.  
 **Do not put in library:** anything only one product would use unchanged.  
-**Biggest honest caveat:** TPM config is forward-compatible only — not enforced.
+**Biggest honest caveat (resolved):** unenforced TPM config was stripped per ADR Q3. Remaining caveats are explicitly experimental surfaces (config / Limiter / hooks).

@@ -43,7 +43,6 @@ def _minimal_dict(*, include_optional: bool = True) -> dict:
         data["global_budget"] = 8
         data["providers"]["openai"]["rate_limits"] = {
             "max_inflight": 4,
-            "max_tokens_per_minute": 100000,
         }
     return data
 
@@ -57,8 +56,20 @@ def test_config_from_dict_minimal():
     assert openai.name == "openai"
     assert openai.enabled is True
     assert openai.api_key_env == "OPENAI_API_KEY"
-    assert openai.rate_limits == ProviderLimit(max_inflight=4, max_tokens_per_minute=100000)
+    assert openai.rate_limits == ProviderLimit(max_inflight=4)
     assert cfg.providers["gemini"].api_key_env == "GEMINI_API_KEY"
+    assert not hasattr(ProviderLimit(max_inflight=1), "max_tokens_per_minute")
+
+
+def test_max_tokens_per_minute_rejected_as_unknown():
+    """0.1.0 honesty: do not advertise unenforced TPM via public config."""
+    data = _minimal_dict(include_optional=False)
+    data["providers"]["openai"]["rate_limits"] = {
+        "max_inflight": 2,
+        "max_tokens_per_minute": 100000,
+    }
+    with pytest.raises(ConfigError, match="max_tokens_per_minute"):
+        config_from_dict(data)
 
 
 def test_load_config_from_json_file(tmp_path: Path):

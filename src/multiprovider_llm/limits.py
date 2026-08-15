@@ -14,14 +14,12 @@ from .types import Usage
 class ProviderLimit:
     """Per-provider limits.
 
-    v1 enforces **``max_inflight`` only** (plus optional global inflight budget).
-    ``max_tokens_per_minute`` is parsed for forward-compatible config and is
-    **explicitly deferred** — ``InMemoryLimiter`` does not account tokens or
-    enforce a TPM window.
+    The default limiter enforces **``max_inflight`` only** (plus optional global
+    inflight budget). Token-per-minute caps are **not** part of the public
+    config surface; inject a custom ``Limiter`` if a caller needs token windows.
     """
 
     max_inflight: int
-    max_tokens_per_minute: int | None = None  # deferred; not enforced in v1
 
 
 @dataclass(frozen=True)
@@ -68,9 +66,8 @@ class InMemoryLimiter:
             return reservation
 
     def finalize(self, reservation: Reservation, *, usage: Usage) -> None:
-        # v1: inflight release only. TPM / token-window accounting is deferred;
-        # ``usage`` is accepted so a future limiter can consume it without
-        # changing the Limiter protocol.
+        # Inflight release only. ``usage`` / ``tokens`` remain on the Limiter
+        # protocol so a caller-injected token-window limiter can use them.
         del usage
         self._drop(reservation)
 

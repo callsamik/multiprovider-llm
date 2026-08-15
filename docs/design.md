@@ -1,7 +1,7 @@
 # multiprovider-llm — Design Spec (v1)
 
-**Status:** v1 implemented — verified against this spec (Task 10, 2026-08-14)  
-**Date:** 2026-08-14  
+**Status:** v1 implemented; **architecture frozen toward 0.1.0** ([ADR](decisions/2026-08-15-architecture-freeze-0.1.0.md), 2026-08-15)  
+**Date:** 2026-08-14 (freeze addendum 2026-08-15)  
 **Package:** `multiprovider-llm` (import: `multiprovider_llm`)  
 **Scope:** Greenfield private library. No coupling to Autonomous Investment Navigator (AIN) in v1.
 
@@ -187,13 +187,13 @@ class Limiter(Protocol):
 ```
 
 - **Atomic reserve** before the HTTP call (sync and async callers must be safe under concurrency).
-- Success → `finalize` (protocol accepts `usage`; **v1 default ignores token usage**).
+- Success → `finalize` (protocol accepts `usage`; **default limiter ignores token usage**).
 - Failure / skip after reserve → `release`.
 - Default implementation: **in-memory `max_inflight` per provider** + optional **global inflight budget**.
-- **`max_tokens_per_minute` is deferred:** accepted in config / `ProviderLimit` for forward compatibility; **not enforced** by `InMemoryLimiter` in v1. Production readiness for TPM requires a future token-window implementation — until then treat v1 limits as **inflight concurrency only**.
-- State is **thread-safe and async-safe** (e.g. a single `threading.Lock` protecting shared counters; document that the default limiter is process-local).
+- **Public config does not accept TPM fields.** `max_tokens_per_minute` is rejected as an unknown `rate_limits` key. Token windows belong in a future injected `Limiter` with an explicit contract — not in advertised-but-unenforced config.
+- State is **thread-safe and async-safe** (e.g. a single `threading.Lock` protecting shared counters). The default limiter is **process-local**: one instance controls one process; multi-process coordination is caller-owned.
 
-Distributed backends (Redis, app-managed quotas) are out of v1 but the protocol allows injection later.
+Distributed backends (Redis, app-managed quotas) are out of the frozen core but the experimental `Limiter` protocol allows injection later.
 
 ### 7.2 Cooldowns
 

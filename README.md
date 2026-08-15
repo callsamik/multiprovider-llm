@@ -4,7 +4,7 @@ Multi-provider LLM client with tier routing, fallback chains, and per-provider /
 
 **Import:** `multiprovider_llm`  
 **Repo:** https://github.com/callsamik/multiprovider-llm  
-**Status:** Public alpha (`0.1.0a1`). Not published to PyPI yet.
+**Status:** Public alpha (`0.1.0a1`). Architecture frozen toward 0.1.0 — see [ADR](docs/decisions/2026-08-15-architecture-freeze-0.1.0.md). Not published to PyPI yet.
 
 ## Docs
 
@@ -12,7 +12,8 @@ Multi-provider LLM client with tier routing, fallback chains, and per-provider /
 | :--- | :--- |
 | **[Tutorial](docs/tutorial.md)** | How to use, configure, connect new agents, and write custom adapters |
 | [Design](docs/design.md) | Approved v1 + v1.1 contracts |
-| **[Architecture review pack](docs/architecture-review-pack-2026-08-15.md)** | As-built design for principal-architect critique (Q1–Q10) |
+| **[0.1.0 architecture freeze (ADR)](docs/decisions/2026-08-15-architecture-freeze-0.1.0.md)** | Q1–Q10 decisions — stop building unless a real caller needs it |
+| [Architecture review pack](docs/architecture-review-pack-2026-08-15.md) | As-built critique input (superseded by the ADR for decisions) |
 | [Plan](docs/plan.md) | Implementation task history |
 | [Article](docs/medium-article.md) | Design and implementation write-up |
 | [v1.1 policy knobs](docs/proposals/2026-08-15-generic-policy-hooks-design.md) | Accepted `on_auth_failure` + `CompletionHooks` |
@@ -21,17 +22,27 @@ Multi-provider LLM client with tier routing, fallback chains, and per-provider /
 
 | Tier | What |
 | :--- | :--- |
-| **Core** | Adapters, routing, freshness filter, limiter protocol, cooldowns, attempt log |
-| **Opt-in policy (v1.1)** | `on_auth_failure`, `CompletionHooks` on client construction |
+| **Frozen core** | Adapters, routing, fallback, freshness filter, retry classification, typed errors, attempt log, in-process cooldown, inflight concurrency |
+| **Experimental** | Config schema, `Limiter` protocol / injection, `CompletionHooks`, call-site `on_auth_failure` |
 | **Caller-owned** | Prompts, schemas, spend gates, durable quota files, product freshness rules beyond the boolean filter |
 
 ## Experimental
 
-The following are **experimental** until covered by tests and explicitly unmarked:
+The following remain **experimental** (may change; do not treat as frozen 0.1.0 API):
 
-- **Config file / dict schema** — shape may change; validated strictly (unknown top-level keys are rejected).
+- **Config file / dict schema** — shape may change; validated strictly (unknown keys are rejected).
 - **`Limiter` protocol** and the default in-memory implementation (`InMemoryLimiter`).
 - **`CompletionHooks` protocol** — optional observability callbacks; hook exceptions are swallowed.
+- **`on_auth_failure`** — shipped opt-in policy knob; default remains `"stop"`.
+
+## Limits (honest contract)
+
+The default limiter limits **concurrency**, not tokens:
+
+- Enforced: per-provider `max_inflight` + optional process-wide `global_budget`.
+- **Process-local:** one limiter instance controls one process. Multi-process deployments need caller-owned coordination.
+- **Not in public config:** `max_tokens_per_minute` (rejected as unknown). Inject a custom `Limiter` if you need a token window.
+- Protocol still accepts `try_reserve(..., tokens=)` and `finalize(..., usage=)` for injected limiters.
 
 ## Requirements
 
@@ -76,9 +87,9 @@ print(result.provider, result.text)
 Async: `AsyncClient.acomplete(...)` with the same parameters.
 
 For Ollama / other OpenAI-compatible servers and **custom adapters**, see the
-[tutorial](docs/tutorial.md) (§7–§8).
+[tutorial](docs/tutorial.md) (§7–§8). OpenAI-compat is enough — there are no named Groq/OpenRouter/Ollama presets.
 
-### v1.1 opt-in policy
+### v1.1 opt-in policy (experimental)
 
 **Auth failure policy** — by default, 401/403 abort the chain immediately. To fall through to the next provider:
 
@@ -97,10 +108,9 @@ class MyHooks:
 client = Client(config, hooks=MyHooks())
 ```
 
-### v1 accepted but explicitly deferred / not wired
+### Accepted but not wire-forwarded
 
-- **`json_schema`**: Accepted and validated (`response_format` must be `"json"`). It is **not sent to providers** on the wire in v1. OpenAI-compatible adapters still set `response_format: json_object` when `response_format="json"`.
-- **`max_tokens_per_minute`**: Parsed on `ProviderLimit` for forward-compatible config only. **Deferred — not enforced.** v1 limiter is **inflight concurrency only** (`max_inflight` + optional `global_budget`). Do not treat TPM as production-ready until a future version implements token-window accounting in `finalize` / `try_reserve`.
+- **`json_schema`**: Accepted and validated (`response_format` must be `"json"`). It is **not sent to providers** on the wire. OpenAI-compatible adapters still set `response_format: json_object` when `response_format="json"`. Provider-native structured output is deferred until a real caller needs it.
 
 ## Development
 

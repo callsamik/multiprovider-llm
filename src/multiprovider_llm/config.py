@@ -72,7 +72,7 @@ def _require_bool(data: Mapping, *, field: str, context: str) -> bool:
 def _parse_rate_limits(raw: object, *, context: str) -> ProviderLimit:
     if not isinstance(raw, Mapping):
         raise ConfigError(f"rate_limits in {context} must be a mapping")
-    unknown = set(raw) - {"max_inflight", "max_tokens_per_minute"}
+    unknown = set(raw) - {"max_inflight"}
     if unknown:
         raise ConfigError(f"unknown rate_limits keys in {context}: {sorted(unknown)!r}")
     max_inflight = raw.get("max_inflight")
@@ -80,10 +80,7 @@ def _parse_rate_limits(raw: object, *, context: str) -> ProviderLimit:
         raise ConfigError(f"missing required field 'max_inflight' in rate_limits for {context}")
     if not isinstance(max_inflight, int) or isinstance(max_inflight, bool):
         raise ConfigError(f"max_inflight in {context} must be an integer")
-    max_tokens = raw.get("max_tokens_per_minute")
-    if max_tokens is not None and (not isinstance(max_tokens, int) or isinstance(max_tokens, bool)):
-        raise ConfigError(f"max_tokens_per_minute in {context} must be an integer or null")
-    return ProviderLimit(max_inflight=max_inflight, max_tokens_per_minute=max_tokens)
+    return ProviderLimit(max_inflight=max_inflight)
 
 
 def _parse_provider(name: str, raw: object) -> ProviderConfig:
