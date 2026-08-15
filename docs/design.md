@@ -59,10 +59,20 @@ result = client.complete(
     timeout_s=None,
     include_raw=False,
     max_tokens=None,                 # optional; Anthropic uses this (default 1024)
+    on_auth_failure="stop",          # "stop" | "continue" — see §6
 )
 
 result = await async_client.acomplete(...)  # same kwargs
 ```
+
+**Client construction (v1.1, opt-in)**
+
+```python
+client = Client(config, hooks=my_hooks)       # optional CompletionHooks
+async_client = AsyncClient(config, hooks=my_hooks)
+```
+
+`hooks` defaults to `None`. When set, the library invokes `on_attempt`, `on_success`, and `on_failure` during orchestration. Hooks are **observability only** — they must not alter control flow; hook exceptions are swallowed.
 
 **Input normalization**
 
@@ -156,7 +166,7 @@ class CompletionResult:
 | Timeouts | Continue chain |
 | Connection failures | Continue chain |
 | Selected 5xx (e.g. 500, 502, 503, 504) and Anthropic overloaded **529** | Continue chain |
-| Auth failures (401 / 403) | **Stop** immediately |
+| Auth failures (401 / 403) | **Stop** immediately by default (`on_auth_failure="stop"`). With `on_auth_failure="continue"`, record `AttemptRecord`, release reservation, try next provider; if all fail → `AllProvidersFailed` |
 | Validation / bad request (400) attributable to caller payload | **Stop** immediately |
 | Configuration errors (missing key, unknown provider in chain) | **Stop** immediately |
 
@@ -281,9 +291,9 @@ multiprovider-llm/
   docs/
 ```
 
-**Experimental (README-labeled until stabilized):** config schema, `Limiter` protocol.
+**Experimental (README-labeled until stabilized):** config schema, `Limiter` protocol, `CompletionHooks` protocol.
 
-**Deferred (not in v1 code):** observability / hooks APIs — callers should use `CompletionResult.attempts` for now.
+**v1.1 (shipped, opt-in):** `on_auth_failure` call kwarg; optional `CompletionHooks` on `Client` / `AsyncClient` construction. Does not replace `CompletionResult.attempts`.
 
 ---
 

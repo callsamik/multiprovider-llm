@@ -11,9 +11,18 @@ Multi-provider LLM client with tier routing, fallback chains, and per-provider /
 | Doc | Purpose |
 | :--- | :--- |
 | **[Tutorial](docs/tutorial.md)** | How to use, configure, connect new agents, and write custom adapters |
-| [Design](docs/design.md) | Approved v1 contracts |
+| [Design](docs/design.md) | Approved v1 + v1.1 contracts |
 | [Plan](docs/plan.md) | Implementation task history |
 | [Article](docs/medium-article.md) | Design and implementation write-up |
+| [v1.1 policy knobs](docs/proposals/2026-08-15-generic-policy-hooks-design.md) | Accepted `on_auth_failure` + `CompletionHooks` |
+
+## API surface
+
+| Tier | What |
+| :--- | :--- |
+| **Core** | Adapters, routing, freshness filter, limiter protocol, cooldowns, attempt log |
+| **Opt-in policy (v1.1)** | `on_auth_failure`, `CompletionHooks` on client construction |
+| **Caller-owned** | Prompts, schemas, spend gates, durable quota files, product freshness rules beyond the boolean filter |
 
 ## Experimental
 
@@ -21,8 +30,7 @@ The following are **experimental** until covered by tests and explicitly unmarke
 
 - **Config file / dict schema** — shape may change; validated strictly (unknown top-level keys are rejected).
 - **`Limiter` protocol** and the default in-memory implementation (`InMemoryLimiter`).
-
-**Out of v1 (not implemented):** observability / hooks APIs. Use `CompletionResult.attempts` for audit today.
+- **`CompletionHooks` protocol** — optional observability callbacks; hook exceptions are swallowed.
 
 ## Requirements
 
@@ -68,6 +76,25 @@ Async: `AsyncClient.acomplete(...)` with the same parameters.
 
 For Ollama / other OpenAI-compatible servers and **custom adapters**, see the
 [tutorial](docs/tutorial.md) (§7–§8).
+
+### v1.1 opt-in policy
+
+**Auth failure policy** — by default, 401/403 abort the chain immediately. To fall through to the next provider:
+
+```python
+result = client.complete(prompt="...", on_auth_failure="continue")
+```
+
+**Observability hooks** — inject on construction; hooks observe only and do not replace `result.attempts`:
+
+```python
+class MyHooks:
+    def on_attempt(self, record): ...
+    def on_success(self, result): ...
+    def on_failure(self, error, *, attempts): ...
+
+client = Client(config, hooks=MyHooks())
+```
 
 ### v1 accepted but not fully wired
 
