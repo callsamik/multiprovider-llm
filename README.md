@@ -96,10 +96,10 @@ class MyHooks:
 client = Client(config, hooks=MyHooks())
 ```
 
-### v1 accepted but not fully wired
+### v1 accepted but explicitly deferred / not wired
 
 - **`json_schema`**: Accepted and validated (`response_format` must be `"json"`). It is **not sent to providers** on the wire in v1. OpenAI-compatible adapters still set `response_format: json_object` when `response_format="json"`.
-- **`max_tokens_per_minute`**: Accepted on provider `rate_limits` in config. **Not enforced** by `InMemoryLimiter` in v1 (only `max_inflight` and optional `global_budget` are).
+- **`max_tokens_per_minute`**: Parsed on `ProviderLimit` for forward-compatible config only. **Deferred — not enforced.** v1 limiter is **inflight concurrency only** (`max_inflight` + optional `global_budget`). Do not treat TPM as production-ready until a future version implements token-window accounting in `finalize` / `try_reserve`.
 
 ## Development
 

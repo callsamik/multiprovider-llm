@@ -147,8 +147,9 @@ class CompletionResult:
    - Skip if cooldown active or limiter denies (after atomic reserve attempt).
    - Resolve model: tier map → provider default.
    - Call adapter (`complete` / `acomplete`).
-   - On **retryable** failure: release/adjust reservation as needed, append `AttemptRecord`, continue chain.
-   - On **non-retryable** failure: release reservation, raise immediately (do not continue).
+   - On **any adapter failure**: release reservation, append `AttemptRecord` (and attach `attempts` on `MultiproviderError` subclasses), then:
+     - **retryable** (or auth with `on_auth_failure="continue"`): continue chain (cooldown on rate limits).
+     - **non-retryable** (auth default `stop`, 400, config/provider errors, `ValidationError` from adapter): raise immediately — do not continue.
    - On success: finalize usage against per-provider + global limiter; return `CompletionResult`.
 6. If every attempted provider failed → raise **`AllProvidersFailed`** with `attempts`.
 
@@ -166,9 +167,9 @@ class CompletionResult:
 | Timeouts | Continue chain |
 | Connection failures | Continue chain |
 | Selected 5xx (e.g. 500, 502, 503, 504) and Anthropic overloaded **529** | Continue chain |
-| Auth failures (401 / 403) | **Stop** immediately by default (`on_auth_failure="stop"`). With `on_auth_failure="continue"`, record `AttemptRecord`, release reservation, try next provider; if all fail → `AllProvidersFailed` |
-| Validation / bad request (400) attributable to caller payload | **Stop** immediately |
-| Configuration errors (missing key, unknown provider in chain) | **Stop** immediately |
+| Auth failures (401 / 403) | Record `AttemptRecord`, then **stop** by default (`on_auth_failure="stop"`). With `on_auth_failure="continue"`, try next provider; if all fail → `AllProvidersFailed` |
+| Validation / bad request (400) attributable to caller payload | Record `AttemptRecord`, then **stop** immediately |
+| Configuration errors (missing key, unknown provider in chain) | Record `AttemptRecord` if a reserve/call was started for that provider, then **stop** |
 
 Exact 5xx allow-list is defined in code and covered by unit tests.
 
@@ -186,9 +187,10 @@ class Limiter(Protocol):
 ```
 
 - **Atomic reserve** before the HTTP call (sync and async callers must be safe under concurrency).
-- Success → `finalize` (adjust reservation to actual usage when known).
+- Success → `finalize` (protocol accepts `usage`; **v1 default ignores token usage**).
 - Failure / skip after reserve → `release`.
-- Default implementation: **in-memory** per-provider limits + optional **global budget**.
+- Default implementation: **in-memory `max_inflight` per provider** + optional **global inflight budget**.
+- **`max_tokens_per_minute` is deferred:** accepted in config / `ProviderLimit` for forward compatibility; **not enforced** by `InMemoryLimiter` in v1. Production readiness for TPM requires a future token-window implementation — until then treat v1 limits as **inflight concurrency only**.
 - State is **thread-safe and async-safe** (e.g. a single `threading.Lock` protecting shared counters; document that the default limiter is process-local).
 
 Distributed backends (Redis, app-managed quotas) are out of v1 but the protocol allows injection later.
@@ -252,13 +254,13 @@ API keys **only** from environment (never logged). Mark config schema **experime
 | :--- | :--- |
 | `ValidationError` | Bad kwargs / message shape |
 | `ConfigError` | Invalid or incomplete configuration |
-| `ProviderError` | Single-provider HTTP/model failure (status, truncated body, headers) |
+| `ProviderError` | Single-provider HTTP/model failure (status, truncated body, headers); after an orchestration attempt, `attempts` is attached |
 | `RateLimited` | Provider signaled rate limit (may also trigger cooldown) |
 | `BudgetExceeded` | Global inflight budget exhausted; orchestrator stops the call |
 | `NoEligibleProviders` | Chain empty after filters / all disabled / none eligible — **no attempts made** |
 | `AllProvidersFailed` | ≥1 attempt made; all failed with retryable (or exhausted) errors |
 
-`NoEligibleProviders` and `AllProvidersFailed` are **distinct** typed errors.
+`NoEligibleProviders` and `AllProvidersFailed` are **distinct** typed errors. Stop-path `ProviderError` / `ValidationError` / `ConfigError` also carry `attempts` when at least one provider call was recorded.
 
 ---
 

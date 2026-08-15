@@ -22,7 +22,7 @@ Keep the library **domain-agnostic** while adding a few **good-to-have, opt-in**
 | Item | Spec |
 | :--- | :--- |
 | Call kwarg | `on_auth_failure: Literal["stop", "continue"] = "stop"` on `Client.complete` / `AsyncClient.acomplete` |
-| `"stop"` (default) | Current v1 behavior: 401/403 (and other non-retryable auth-class `ProviderError`s) abort the chain immediately |
+| `"stop"` (default) | Record `AttemptRecord`, attach `attempts` on the raised error, then abort the chain (do not try later providers) |
 | `"continue"` | Record `AttemptRecord`, release reservation, try next provider in the resolved chain |
 | Auth detection | `ProviderError` / subclass with `status_code in {401, 403}` |
 | Exhaustion | If every provider fails under `"continue"`, raise `AllProvidersFailed` with `attempts` (same as today) |
@@ -69,17 +69,18 @@ Clarify three tiers:
 
 ## 4. Compatibility
 
-- Default `on_auth_failure="stop"` → **no behavior change** for existing callers.  
-- Hooks default off → **no behavior change**.  
+- Default `on_auth_failure="stop"` → still stops the chain on first auth failure; now **records** the failed attempt on the raised error (`exc.attempts`). Callers that only checked exception type/status are unchanged.
+- Hooks default off → **no behavior change**.
 - Bump package note to `0.1.0a2` (or keep `0.1.0a1` + changelog) when shipping.
 
 ---
 
 ## 5. Tests (library)
 
-- `on_auth_failure="stop"`: first provider 401 → raises; second never called  
-- `on_auth_failure="continue"`: first 401 → second succeeds; attempts length 2  
-- `on_auth_failure="continue"`: all 401 → `AllProvidersFailed`  
+- `on_auth_failure="stop"`: first provider 401 → raises with `len(exc.attempts) == 1`; second never called
+- Non-retryable 400: raises with one recorded attempt
+- `on_auth_failure="continue"`: first 401 → second succeeds; attempts length 2
+- `on_auth_failure="continue"`: all 401 → `AllProvidersFailed`
 - Hook `on_attempt` / `on_success` invoked; if hook raises, completion still succeeds (library swallows)
 
 ---

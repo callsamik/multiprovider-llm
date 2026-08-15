@@ -16,6 +16,7 @@ from .errors import (
     AllProvidersFailed,
     BudgetExceeded,
     ConfigError,
+    MultiproviderError,
     NoEligibleProviders,
     RateLimited,
     ValidationError,
@@ -216,27 +217,7 @@ def _handle_adapter_exception(
 ) -> None:
     limiter.release(reservation)
     latency_ms = (time.perf_counter() - call_started) * 1000
-    if isinstance(exc, ValidationError):
-        _notify_failure(hooks, exc, tuple(attempts))
-        raise
-    if is_auth_failure(exc) and on_auth_failure == "continue":
-        _append_attempt(
-            attempts,
-            AttemptRecord(
-                provider=name,
-                model=model,
-                ok=False,
-                error_type=type(exc).__name__,
-                status_code=getattr(exc, "status_code", None),
-                latency_ms=latency_ms,
-                message=_truncate(str(exc)),
-            ),
-            hooks,
-        )
-        return
-    if not is_retryable(exc):
-        _notify_failure(hooks, exc, tuple(attempts))
-        raise
+    # Always record the failed attempt before stop/continue (audit parity).
     _append_attempt(
         attempts,
         AttemptRecord(
@@ -250,6 +231,16 @@ def _handle_adapter_exception(
         ),
         hooks,
     )
+    if isinstance(exc, MultiproviderError):
+        exc.attempts = tuple(attempts)
+    if isinstance(exc, ValidationError):
+        _notify_failure(hooks, exc, tuple(attempts))
+        raise
+    if is_auth_failure(exc) and on_auth_failure == "continue":
+        return
+    if not is_retryable(exc):
+        _notify_failure(hooks, exc, tuple(attempts))
+        raise
     if isinstance(exc, RateLimited):
         cooldowns.set_cooldown(name, seconds=_retry_after_seconds(exc))
 

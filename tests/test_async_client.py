@@ -98,8 +98,10 @@ async def test_auth_stops_chain():
         _config(("a", "b")),
         adapters={"a": FakeAsyncAdapter("a", auth), "b": FakeAsyncAdapter("b", ok)},
     )
-    with pytest.raises(ProviderError):
+    with pytest.raises(ProviderError) as ei:
         await client.acomplete(prompt="hi")
+    assert len(ei.value.attempts) == 1
+    assert ei.value.attempts[0].status_code == 401
 
 
 async def test_auth_continue_falls_through():

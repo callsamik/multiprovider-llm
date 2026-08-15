@@ -196,7 +196,7 @@ Unknown **top-level** keys raise `ConfigError`. Provider entries are also valida
 | `base_url` | HTTP endpoint root used when `Client` builds the builtin adapter |
 | `api_key_env` | Name of the env var holding the key (never the key itself). Empty string = no key required (some local servers). Missing/blank env value → `ConfigError` |
 | `rate_limits.max_inflight` | Enforced by default `InMemoryLimiter` |
-| `rate_limits.max_tokens_per_minute` | Accepted in config; **not enforced** in v1 |
+| `rate_limits.max_tokens_per_minute` | Parsed for forward-compat; **deferred — not enforced** (v1 = inflight only) |
 | `provider_order` | Default fallback order |
 | `tier_routing` | Preferred lead order per tier (remainder keep relative order from `provider_order`) |
 | `global_budget` | Optional process-wide inflight ceiling |

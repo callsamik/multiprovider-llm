@@ -99,9 +99,24 @@ def test_auth_stop_default_does_not_try_second():
         calls.append("b")
         return ProviderResponse(text="y", usage=Usage(), status_code=200)
     client = Client(_config(("a", "b")), adapters={"a": FakeAdapter("a", auth), "b": FakeAdapter("b", ok)})
-    with pytest.raises(ProviderError):
+    with pytest.raises(ProviderError) as ei:
         client.complete(prompt="hi")
     assert calls == ["a"]
+    assert len(ei.value.attempts) == 1
+    assert ei.value.attempts[0].ok is False
+    assert ei.value.attempts[0].status_code == 401
+
+
+def test_non_retryable_400_records_attempt_before_stop():
+    def bad(_req):
+        raise ProviderError("bad request", status_code=400, provider="a")
+
+    client = Client(_config(("a", "b")), adapters={"a": FakeAdapter("a", bad), "b": FakeAdapter("b", bad)})
+    with pytest.raises(ProviderError) as ei:
+        client.complete(prompt="hi")
+    assert len(ei.value.attempts) == 1
+    assert ei.value.attempts[0].ok is False
+    assert ei.value.attempts[0].status_code == 400
 
 
 def test_auth_continue_falls_through():
