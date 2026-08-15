@@ -2,7 +2,18 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from .types import ProviderRequest, ProviderResponse, Usage
+from .types import AttemptRecord, CompletionResult, ProviderRequest, ProviderResponse, Usage
+
+
+@runtime_checkable
+class CompletionHooks(Protocol):
+    def on_attempt(self, record: AttemptRecord) -> None: ...
+
+    def on_success(self, result: CompletionResult) -> None: ...
+
+    def on_failure(
+        self, error: BaseException, *, attempts: tuple[AttemptRecord, ...]
+    ) -> None: ...
 
 
 @runtime_checkable

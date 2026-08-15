@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, NoReturn
 
@@ -21,7 +21,7 @@ from .errors import (
     ValidationError,
 )
 from .limits import CooldownTracker, InMemoryLimiter, ProviderLimit
-from .protocols import Limiter, ProviderAdapter, Reservation
+from .protocols import CompletionHooks, Limiter, ProviderAdapter, Reservation
 from .providers.registry import get_provider
 from .routing import is_auth_failure, is_retryable, resolve_chain, resolve_model
 from .serialization import extract_json_text, normalize_messages
@@ -36,6 +36,32 @@ from .types import (
 _DEFAULT_MAX_INFLIGHT = 32
 _DEFAULT_COOLDOWN_S = 1.0
 _MESSAGE_LIMIT = 500
+
+
+def _safe_hook(fn: Callable[..., None], *args: object, **kwargs: object) -> None:
+    try:
+        fn(*args, **kwargs)
+    except Exception:
+        pass
+
+
+def _append_attempt(
+    attempts: list[AttemptRecord],
+    record: AttemptRecord,
+    hooks: CompletionHooks | None,
+) -> None:
+    attempts.append(record)
+    if hooks is not None:
+        _safe_hook(hooks.on_attempt, record)
+
+
+def _notify_failure(
+    hooks: CompletionHooks | None,
+    error: BaseException,
+    attempts: tuple[AttemptRecord, ...],
+) -> None:
+    if hooks is not None:
+        _safe_hook(hooks.on_failure, error, attempts=attempts)
 
 
 def _default_limiter(config: LibraryConfig) -> InMemoryLimiter:
@@ -131,13 +157,15 @@ def _try_reserve_attempt(
     cooldowns: CooldownTracker,
     name: str,
     attempts: list[AttemptRecord],
+    hooks: CompletionHooks | None = None,
 ) -> Reservation | None:
     if cooldowns.is_cooling(name):
         return None
     try:
         return limiter.try_reserve(name)
     except RateLimited as exc:
-        attempts.append(
+        _append_attempt(
+            attempts,
             AttemptRecord(
                 provider=name,
                 model=None,
@@ -146,10 +174,12 @@ def _try_reserve_attempt(
                 status_code=None,
                 latency_ms=0.0,
                 message=_truncate(str(exc)),
-            )
+            ),
+            hooks,
         )
         return None
-    except BudgetExceeded:
+    except BudgetExceeded as exc:
+        _notify_failure(hooks, exc, tuple(attempts))
         raise
 
 
@@ -182,13 +212,16 @@ def _handle_adapter_exception(
     attempts: list[AttemptRecord],
     *,
     on_auth_failure: Literal["stop", "continue"] = "stop",
+    hooks: CompletionHooks | None = None,
 ) -> None:
     limiter.release(reservation)
     latency_ms = (time.perf_counter() - call_started) * 1000
     if isinstance(exc, ValidationError):
+        _notify_failure(hooks, exc, tuple(attempts))
         raise
     if is_auth_failure(exc) and on_auth_failure == "continue":
-        attempts.append(
+        _append_attempt(
+            attempts,
             AttemptRecord(
                 provider=name,
                 model=model,
@@ -197,12 +230,15 @@ def _handle_adapter_exception(
                 status_code=getattr(exc, "status_code", None),
                 latency_ms=latency_ms,
                 message=_truncate(str(exc)),
-            )
+            ),
+            hooks,
         )
         return
     if not is_retryable(exc):
+        _notify_failure(hooks, exc, tuple(attempts))
         raise
-    attempts.append(
+    _append_attempt(
+        attempts,
         AttemptRecord(
             provider=name,
             model=model,
@@ -211,7 +247,8 @@ def _handle_adapter_exception(
             status_code=getattr(exc, "status_code", None),
             latency_ms=latency_ms,
             message=_truncate(str(exc)),
-        )
+        ),
+        hooks,
     )
     if isinstance(exc, RateLimited):
         cooldowns.set_cooldown(name, seconds=_retry_after_seconds(exc))
@@ -226,6 +263,7 @@ def _handle_success(
     prepared: _PreparedCall,
     attempts: list[AttemptRecord],
     latency_ms: float,
+    hooks: CompletionHooks | None = None,
 ) -> CompletionResult | None:
     text = response.text
     if prepared.response_format == "json":
@@ -233,7 +271,8 @@ def _handle_success(
             text = extract_json_text(response.text)
         except ValidationError as exc:
             limiter.release(reservation)
-            attempts.append(
+            _append_attempt(
+                attempts,
                 AttemptRecord(
                     provider=name,
                     model=model,
@@ -242,12 +281,14 @@ def _handle_success(
                     status_code=response.status_code,
                     latency_ms=latency_ms,
                     message=_truncate(str(exc)),
-                )
+                ),
+                hooks,
             )
             return None
 
     limiter.finalize(reservation, usage=response.usage)
-    attempts.append(
+    _append_attempt(
+        attempts,
         AttemptRecord(
             provider=name,
             model=model,
@@ -256,7 +297,8 @@ def _handle_success(
             status_code=response.status_code,
             latency_ms=latency_ms,
             message=None,
-        )
+        ),
+        hooks,
     )
     return CompletionResult(
         text=text,
@@ -284,12 +326,14 @@ class _ClientCore:
         limiter: Limiter | None = None,
         cooldowns: CooldownTracker | None = None,
         adapters: Mapping[str, ProviderAdapter] | None = None,
+        hooks: CompletionHooks | None = None,
     ) -> None:
         self._config = config
         self._limiter = limiter if limiter is not None else _default_limiter(config)
         self._cooldowns = cooldowns if cooldowns is not None else CooldownTracker()
         self._adapters = dict(adapters) if adapters is not None else None
         self._resolved: dict[str, ProviderAdapter] = {}
+        self._hooks = hooks
 
     def _adapter_for(self, name: str) -> ProviderAdapter:
         if self._adapters is not None:
@@ -323,23 +367,27 @@ class Client(_ClientCore):
         max_tokens: int | None = None,
         on_auth_failure: Literal["stop", "continue"] = "stop",
     ) -> CompletionResult:
-        prepared = _prepare_call(
-            self._config,
-            prompt=prompt,
-            messages=messages,
-            tier=tier,
-            provider_chain=provider_chain,
-            response_format=response_format,
-            json_schema=json_schema,
-            freshness_required=freshness_required,
-            timeout_s=timeout_s,
-            include_raw=include_raw,
-            max_tokens=max_tokens,
-        )
+        try:
+            prepared = _prepare_call(
+                self._config,
+                prompt=prompt,
+                messages=messages,
+                tier=tier,
+                provider_chain=provider_chain,
+                response_format=response_format,
+                json_schema=json_schema,
+                freshness_required=freshness_required,
+                timeout_s=timeout_s,
+                include_raw=include_raw,
+                max_tokens=max_tokens,
+            )
+        except BaseException as exc:
+            _notify_failure(self._hooks, exc, ())
+            raise
         attempts: list[AttemptRecord] = []
         for name in prepared.chain:
             reservation = _try_reserve_attempt(
-                self._limiter, self._cooldowns, name, attempts
+                self._limiter, self._cooldowns, name, attempts, self._hooks
             )
             if reservation is None:
                 continue
@@ -361,6 +409,7 @@ class Client(_ClientCore):
                         call_started,
                         attempts,
                         on_auth_failure=on_auth_failure,
+                        hooks=self._hooks,
                     )
                     finalized = True
                     continue
@@ -374,11 +423,21 @@ class Client(_ClientCore):
                     prepared,
                     attempts,
                     latency_ms,
+                    self._hooks,
                 )
                 finalized = True
                 if result is not None:
+                    if self._hooks is not None:
+                        _safe_hook(self._hooks.on_success, result)
                     return result
             finally:
                 if not finalized:
                     self._limiter.release(reservation)
-        _raise_if_exhausted(attempts)
+        if not attempts:
+            error: BaseException = NoEligibleProviders(
+                "no eligible providers after routing filters"
+            )
+        else:
+            error = AllProvidersFailed("all providers failed", attempts=tuple(attempts))
+        _notify_failure(self._hooks, error, tuple(attempts))
+        raise error

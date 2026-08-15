@@ -298,3 +298,35 @@ def test_complete_rejects_non_positive_max_tokens():
     client = Client(_config(("a",)), adapters={"a": FakeAdapter("a", lambda r: None)})
     with pytest.raises(ValidationError, match="max_tokens"):
         client.complete(prompt="hi", max_tokens=0)
+
+
+class RecordingHooks:
+    def __init__(self):
+        self.attempts = []
+        self.successes = []
+
+    def on_attempt(self, record):
+        self.attempts.append(record)
+        raise RuntimeError("hook blowup")
+
+    def on_success(self, result):
+        self.successes.append(result)
+
+    def on_failure(self, error, *, attempts):
+        pass
+
+
+def test_hooks_swallowed_on_success():
+    hooks = RecordingHooks()
+
+    def ok(_req):
+        return ProviderResponse(text="y", usage=Usage(), status_code=200)
+
+    client = Client(
+        _config(("a",)),
+        adapters={"a": FakeAdapter("a", ok)},
+        hooks=hooks,
+    )
+    result = client.complete(prompt="hi")
+    assert result.text
+    assert hooks.successes
