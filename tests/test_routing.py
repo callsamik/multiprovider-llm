@@ -2,7 +2,7 @@ import pytest
 
 from multiprovider_llm.config import LibraryConfig, ProviderConfig
 from multiprovider_llm.errors import ConfigError, ProviderError, RateLimited, ValidationError
-from multiprovider_llm.routing import is_retryable, resolve_chain, resolve_model
+from multiprovider_llm.routing import is_auth_failure, is_retryable, resolve_chain, resolve_model
 
 
 def _cfg():
@@ -68,6 +68,13 @@ def test_tier_routing_reorders():
 def test_freshness_filters_local():
     chain = resolve_chain(_cfg(), tier=None, provider_chain=None, freshness_required=True)
     assert "ollama" not in chain
+
+
+def test_is_auth_failure():
+    assert is_auth_failure(ProviderError("x", status_code=401))
+    assert is_auth_failure(ProviderError("x", status_code=403))
+    assert not is_auth_failure(ProviderError("x", status_code=500))
+    assert not is_auth_failure(RateLimited("x", status_code=429))
 
 
 def test_retryability_matrix():

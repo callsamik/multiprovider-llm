@@ -90,6 +90,42 @@ def test_fallback_then_success():
     assert result.attempts[0].ok is False and result.attempts[1].ok is True
 
 
+def test_auth_stop_default_does_not_try_second():
+    calls = []
+    def auth(_req):
+        calls.append("a")
+        raise ProviderError("auth", status_code=401, provider="a")
+    def ok(_req):
+        calls.append("b")
+        return ProviderResponse(text="y", usage=Usage(), status_code=200)
+    client = Client(_config(("a", "b")), adapters={"a": FakeAdapter("a", auth), "b": FakeAdapter("b", ok)})
+    with pytest.raises(ProviderError):
+        client.complete(prompt="hi")
+    assert calls == ["a"]
+
+
+def test_auth_continue_falls_through():
+    def auth(_req):
+        raise ProviderError("auth", status_code=401, provider="a")
+    def ok(_req):
+        return ProviderResponse(text="y", usage=Usage(), status_code=200)
+    client = Client(_config(("a", "b")), adapters={"a": FakeAdapter("a", auth), "b": FakeAdapter("b", ok)})
+    result = client.complete(prompt="hi", on_auth_failure="continue")
+    assert result.provider == "b"
+    assert result.attempts[0].ok is False
+    assert result.attempts[0].status_code == 401
+    assert result.attempts[1].ok is True
+
+
+def test_auth_continue_all_fail():
+    def auth(req):
+        raise ProviderError("auth", status_code=401)
+    client = Client(_config(("a", "b")), adapters={"a": FakeAdapter("a", auth), "b": FakeAdapter("b", auth)})
+    with pytest.raises(AllProvidersFailed) as ei:
+        client.complete(prompt="hi", on_auth_failure="continue")
+    assert len(ei.value.attempts) == 2
+
+
 def test_auth_stops_chain():
     def auth(_req):
         raise ProviderError("auth", status_code=401, provider="a")

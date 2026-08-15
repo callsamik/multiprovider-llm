@@ -47,6 +47,12 @@ def resolve_model(config: LibraryConfig, provider: str, tier: str | None) -> str
     return provider_config.default_model
 
 
+def is_auth_failure(exc: BaseException) -> bool:
+    if isinstance(exc, ProviderError):
+        return exc.status_code in {401, 403}
+    return False
+
+
 def is_retryable(exc: BaseException) -> bool:
     if isinstance(exc, (ValidationError, ConfigError, BudgetExceeded)):
         return False

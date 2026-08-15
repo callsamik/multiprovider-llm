@@ -23,7 +23,7 @@ from .errors import (
 from .limits import CooldownTracker, InMemoryLimiter, ProviderLimit
 from .protocols import Limiter, ProviderAdapter, Reservation
 from .providers.registry import get_provider
-from .routing import is_retryable, resolve_chain, resolve_model
+from .routing import is_auth_failure, is_retryable, resolve_chain, resolve_model
 from .serialization import extract_json_text, normalize_messages
 from .types import (
     AttemptRecord,
@@ -180,10 +180,27 @@ def _handle_adapter_exception(
     exc: Exception,
     call_started: float,
     attempts: list[AttemptRecord],
+    *,
+    on_auth_failure: Literal["stop", "continue"] = "stop",
 ) -> None:
     limiter.release(reservation)
     latency_ms = (time.perf_counter() - call_started) * 1000
-    if isinstance(exc, ValidationError) or not is_retryable(exc):
+    if isinstance(exc, ValidationError):
+        raise
+    if is_auth_failure(exc) and on_auth_failure == "continue":
+        attempts.append(
+            AttemptRecord(
+                provider=name,
+                model=model,
+                ok=False,
+                error_type=type(exc).__name__,
+                status_code=getattr(exc, "status_code", None),
+                latency_ms=latency_ms,
+                message=_truncate(str(exc)),
+            )
+        )
+        return
+    if not is_retryable(exc):
         raise
     attempts.append(
         AttemptRecord(
@@ -304,6 +321,7 @@ class Client(_ClientCore):
         timeout_s: float | None = None,
         include_raw: bool = False,
         max_tokens: int | None = None,
+        on_auth_failure: Literal["stop", "continue"] = "stop",
     ) -> CompletionResult:
         prepared = _prepare_call(
             self._config,
@@ -342,6 +360,7 @@ class Client(_ClientCore):
                         exc,
                         call_started,
                         attempts,
+                        on_auth_failure=on_auth_failure,
                     )
                     finalized = True
                     continue
