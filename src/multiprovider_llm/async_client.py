@@ -17,10 +17,12 @@ from .client import (
     _ClientCore,
     _handle_adapter_exception,
     _handle_success,
+    _notify_failure,
     _prepare_call,
-    _raise_if_exhausted,
+    _safe_hook,
     _try_reserve_attempt,
 )
+from .errors import AllProvidersFailed, NoEligibleProviders
 from .types import AttemptRecord, CompletionResult, Message
 
 
@@ -40,23 +42,27 @@ class AsyncClient(_ClientCore):
         max_tokens: int | None = None,
         on_auth_failure: Literal["stop", "continue"] = "stop",
     ) -> CompletionResult:
-        prepared = _prepare_call(
-            self._config,
-            prompt=prompt,
-            messages=messages,
-            tier=tier,
-            provider_chain=provider_chain,
-            response_format=response_format,
-            json_schema=json_schema,
-            freshness_required=freshness_required,
-            timeout_s=timeout_s,
-            include_raw=include_raw,
-            max_tokens=max_tokens,
-        )
+        try:
+            prepared = _prepare_call(
+                self._config,
+                prompt=prompt,
+                messages=messages,
+                tier=tier,
+                provider_chain=provider_chain,
+                response_format=response_format,
+                json_schema=json_schema,
+                freshness_required=freshness_required,
+                timeout_s=timeout_s,
+                include_raw=include_raw,
+                max_tokens=max_tokens,
+            )
+        except BaseException as exc:
+            _notify_failure(self._hooks, exc, ())
+            raise
         attempts: list[AttemptRecord] = []
         for name in prepared.chain:
             reservation = _try_reserve_attempt(
-                self._limiter, self._cooldowns, name, attempts
+                self._limiter, self._cooldowns, name, attempts, self._hooks
             )
             if reservation is None:
                 continue
@@ -78,6 +84,7 @@ class AsyncClient(_ClientCore):
                         call_started,
                         attempts,
                         on_auth_failure=on_auth_failure,
+                        hooks=self._hooks,
                     )
                     finalized = True
                     continue
@@ -91,11 +98,21 @@ class AsyncClient(_ClientCore):
                     prepared,
                     attempts,
                     latency_ms,
+                    self._hooks,
                 )
                 finalized = True
                 if result is not None:
+                    if self._hooks is not None:
+                        _safe_hook(self._hooks.on_success, result)
                     return result
             finally:
                 if not finalized:
                     self._limiter.release(reservation)
-        _raise_if_exhausted(attempts)
+        if not attempts:
+            error: BaseException = NoEligibleProviders(
+                "no eligible providers after routing filters"
+            )
+        else:
+            error = AllProvidersFailed("all providers failed", attempts=tuple(attempts))
+        _notify_failure(self._hooks, error, tuple(attempts))
+        raise error

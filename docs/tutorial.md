@@ -21,7 +21,7 @@ OpenAI-compatible locals (Ollama, LM Studio, vLLM, Groq, OpenRouter, …) work b
 **reusing** `OpenAICompatAdapter` with another `base_url` — you usually do **not**
 need a new adapter class. Write a custom adapter only for a non-compatible API.
 
-Config schema and `Limiter` are **experimental**. Observability hooks are **not implemented** in v1 (use `result.attempts`).
+Config schema and `Limiter` are **experimental**. Optional `CompletionHooks` on client construction are **opt-in (v1.1)** — hook exceptions are swallowed; use `result.attempts` for built-in attempt history.
 
 ---
 

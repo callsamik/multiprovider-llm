@@ -210,3 +210,37 @@ def test_async_client_exported():
     from multiprovider_llm import AsyncClient as Exported
 
     assert Exported is AsyncClient
+
+
+class RecordingHooks:
+    def __init__(self):
+        self.attempts = []
+        self.successes = []
+
+    def on_attempt(self, record):
+        self.attempts.append(record)
+        raise RuntimeError("hook blowup")
+
+    def on_success(self, result):
+        self.successes.append(result)
+
+    def on_failure(self, error, *, attempts):
+        pass
+
+
+async def test_async_hooks_swallowed_on_success():
+    hooks = RecordingHooks()
+
+    async def ok(_req):
+        return ProviderResponse(text="y", usage=Usage(), status_code=200)
+
+    client = AsyncClient(
+        _config(("a",)),
+        adapters={"a": FakeAsyncAdapter("a", ok)},
+        hooks=hooks,
+    )
+    result = await client.acomplete(prompt="hi")
+    assert result.text
+    assert hooks.successes
+    assert len(hooks.attempts) == 1
+    assert hooks.attempts[0].ok is True
