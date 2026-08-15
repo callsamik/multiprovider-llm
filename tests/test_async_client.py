@@ -102,6 +102,24 @@ async def test_auth_stops_chain():
         await client.acomplete(prompt="hi")
 
 
+async def test_auth_continue_falls_through():
+    async def auth(_req):
+        raise ProviderError("auth", status_code=401, provider="a")
+
+    async def ok(_req):
+        return ProviderResponse(text="y", usage=Usage(), status_code=200)
+
+    client = AsyncClient(
+        _config(("a", "b")),
+        adapters={"a": FakeAsyncAdapter("a", auth), "b": FakeAsyncAdapter("b", ok)},
+    )
+    result = await client.acomplete(prompt="hi", on_auth_failure="continue")
+    assert result.provider == "b"
+    assert result.attempts[0].ok is False
+    assert result.attempts[0].status_code == 401
+    assert result.attempts[1].ok is True
+
+
 async def test_all_providers_cooling_raises_no_eligible():
     cooldowns = CooldownTracker()
     for name in ("a", "b"):

@@ -38,6 +38,7 @@ class AsyncClient(_ClientCore):
         timeout_s: float | None = None,
         include_raw: bool = False,
         max_tokens: int | None = None,
+        on_auth_failure: Literal["stop", "continue"] = "stop",
     ) -> CompletionResult:
         prepared = _prepare_call(
             self._config,
@@ -76,6 +77,7 @@ class AsyncClient(_ClientCore):
                         exc,
                         call_started,
                         attempts,
+                        on_auth_failure=on_auth_failure,
                     )
                     finalized = True
                     continue
