@@ -12,6 +12,7 @@ Multi-provider LLM client with tier routing, fallback chains, and per-provider /
 | :--- | :--- |
 | **[Tutorial](docs/tutorial.md)** | How to use, configure, connect new agents, and write custom adapters |
 | [Design](docs/design.md) | Approved v1 + v1.1 contracts |
+| **[Architecture review pack](docs/architecture-review-pack-2026-08-15.md)** | As-built design for principal-architect critique (Q1–Q10) |
 | [Plan](docs/plan.md) | Implementation task history |
 | [Article](docs/medium-article.md) | Design and implementation write-up |
 | [v1.1 policy knobs](docs/proposals/2026-08-15-generic-policy-hooks-design.md) | Accepted `on_auth_failure` + `CompletionHooks` |
