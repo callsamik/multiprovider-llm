@@ -15,3 +15,16 @@ class Candidate:
     freshness_ok: bool
     tier_affinity: Mapping[str, float]
     http_referer: str | None
+
+
+@dataclass(frozen=True)
+class FilterNote:
+    provider: str
+    model: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class PrefilterResult:
+    eligible: tuple[Candidate, ...]
+    notes: tuple[FilterNote, ...]
