@@ -1,14 +1,14 @@
 # Session handoff: Smart routing experimental layer (v0.2, architect-revised)
 
 **Date:** 2026-08-21  
-**Status:** Architect-revised; **M1–M3 implemented on this branch**, awaiting ranking-contract architecture review; **M4 gated / STOPPED**; **no v0.2 PR**  
+**Status:** Architect-revised; **M1–M3 ranking contract signed off**; **M4 implementation review APPROVED**; **no merge/push/PR**; **M5–M7 gated**  
 **Use:** Attach this file to a new AI session to resume without prior chat context.
 
 ---
 
 ## 1. One-paragraph summary
 
-Smart routing is **approved in principle** as an evidence-triggered **experimental layer above frozen 0.1.0 primitives**. It is **not** approved as the 2026-08-18 draft was written. AIN has a real multi-provider path and the static chain has measurable inefficiency, but AIN-specific policy (`tier_routing`) must not enter library scoring. Catalog is a generic `ProviderCatalog`. `Client` stays frozen (always chain). `SmartClient` is separate and **gated until after M1–M3**. Artifact-store stays cancelled. Generic `CompletionHooks` need no redesign. **No PRs exist yet** for v0.2; Layer 21 bridge work is already shipped in AIN (PRs #27, #34, #35) on library pin `9468eeb`.
+Smart routing is **approved in principle** as an evidence-triggered **experimental layer above frozen 0.1.0 primitives**. It is **not** approved as the 2026-08-18 draft was written. AIN has a real multi-provider path and the static chain has measurable inefficiency, but AIN-specific policy (`tier_routing`) must not enter library scoring. Catalog is a generic `ProviderCatalog`. `Client` stays frozen (always chain). The M1–M3 candidate/ranking contract is **architecturally signed off**. **M4 (`SmartClient`) implementation review is APPROVED**. Merge/push/PR is not authorized. M5–M7 stay gated. Artifact-store stays cancelled. Generic `CompletionHooks` need no redesign. **No PRs exist yet** for v0.2; Layer 21 bridge work is already shipped in AIN (PRs #27, #34, #35) on library pin `9468eeb`.
 
 ---
 
@@ -32,6 +32,9 @@ Smart routing is **approved in principle** as an evidence-triggered **experiment
 | Document | Repo | Purpose |
 | :--- | :--- | :--- |
 | [`2026-08-21-smart-routing-experimental-layer.md`](../decisions/2026-08-21-smart-routing-experimental-layer.md) | **multiprovider-llm** | **Controlling ADR** — narrowed v0.2, D1–D9, M1–M3 gate |
+| [`2026-08-21-m1-m3-ranking-contract-signoff.md`](../decisions/2026-08-21-m1-m3-ranking-contract-signoff.md) | **multiprovider-llm** | **Ranking-contract review** — approved as M4 input |
+| [`2026-08-21-m4-smartclient-authorization.md`](../decisions/2026-08-21-m4-smartclient-authorization.md) | **multiprovider-llm** | **M4 authorized**; invariants frozen |
+| [`2026-08-21-m4-implementation-review.md`](../decisions/2026-08-21-m4-implementation-review.md) | **multiprovider-llm** | **M4 implementation review APPROVED**; merge/M5–M7 not authorized |
 | [`2026-08-18-smart-routing-free-tiers-design.md`](2026-08-18-smart-routing-free-tiers-design.md) | **multiprovider-llm** | **Canonical design** (architect-revised 2026-08-21) |
 | [`2026-08-21-smart-routing-session-handoff.md`](2026-08-21-smart-routing-session-handoff.md) | **multiprovider-llm** | **This file** |
 | [`2026-08-21-smart-routing-m1-m3.md`](../superpowers/plans/2026-08-21-smart-routing-m1-m3.md) | **multiprovider-llm** | **M1–M3 implementation plan** (no SmartClient) |
@@ -65,9 +68,11 @@ Smart routing is **approved in principle** as an evidence-triggered **experiment
 
 ---
 
-## 5. Approved direction (M1–M3 implemented; M4 gated)
+## 5. Approved direction (M1–M3 signed off; M4 authorized)
 
-M1–M3 ranking primitives are implemented on this branch. Architect review of the ranking contract is required before M4 (`SmartClient`).
+M1–M3 ranking primitives are implemented and the candidate/ranking contract is **architecturally approved**. **M4 implementation review is APPROVED.** Merge / push / PR is not authorized. M5–M7 stay gated.
+
+**Frozen M4 invariants:** `SmartClient` uses `classify_error`; `Client` keeps `is_retryable`; join `RankedTarget` to `Candidate` by `(provider, model)`; `Candidate` has no `pool_key`; `QuotaReader` interprets catalog shared-quota identity; `score == 0.0` is comparative, not unhealthy; no frozen `Client` / `routing_mode` / `tier_routing` changes. Decouple frozen chain imports from ranking modules during M4 if the graph becomes consequential.
 
 ### Controlling principle
 
@@ -78,7 +83,7 @@ Library = how the call runs reliably. AIN = why, with what evidence, and what it
 | Client | Behavior |
 | :--- | :--- |
 | **`Client` (frozen)** | Static config order per tier; current behavior |
-| **`SmartClient` (experimental, M4 gated)** | Pool → pre-filter → 5-factor score → ranked fallback + model lockout + LKGP |
+| **`SmartClient` (experimental, M4 authorized)** | Pool → pre-filter → 5-factor score → ranked fallback + model lockout + LKGP |
 
 AIN chooses which object to construct. Do not dispatch inside `Client.complete()`.
 
@@ -118,13 +123,13 @@ AIN chooses which object to construct. Do not dispatch inside `Client.complete()
 - Named Groq / OpenRouter / Ollama presets
 - Artifact-store extraction
 - Caller-supplied routing prior in v0.2
-- Implementing `SmartClient` before M1–M3 review
+- Merge / push / PR without a separate authorization
 
 ---
 
-## 7. AIN changes (only after M4 is authorized)
+## 7. AIN changes (M5, still gated)
 
-**Until then:** no AIN code changes required. Chain/`Client` stays the production path.
+**Until M5:** no AIN code changes required. Chain/`Client` stays the production path.
 
 When M5 is later authorized: construct `SmartClient`, inject readers, pass `tier` / `task_kind` / `freshness_required` / `free_only`. **Do not** feed `tier_routing` into scoring. `validate_tier_routing()` remains AIN chain policy.
 
@@ -150,11 +155,13 @@ When M5 is later authorized: construct `SmartClient`, inject readers, pass `tier
 
 | Milestone | Owner | Status |
 | :--- | :--- | :--- |
-| **M1** | Library | **Implemented (this branch)** — catalog, pool, credential/freshness/free filters; awaiting ranking-contract architecture review |
-| **M2** | Library | **Implemented (this branch)** — lockout, error classifier, prefilter; awaiting ranking-contract architecture review |
-| **M3** | Library | **Implemented (this branch)** — scoring, LKGP, `QuotaReader`; awaiting ranking-contract architecture review |
-| **Review** | Architect | **Required** before M4 |
-| **M4** | Library | Gated — `SmartClient` |
+| **M1** | Library | **Signed off** — catalog, pool, credential/freshness/free filters |
+| **M2** | Library | **Signed off** — lockout, error classifier, prefilter |
+| **M3** | Library | **Signed off** — scoring, LKGP, `QuotaReader` |
+| **Review** | Architect | **Complete 2026-08-21** — contract approved as M4 *input* boundary |
+| **M4 auth** | Architect | **YES 2026-08-21** — invariants frozen |
+| **M4 slice** | Architect | **Defined** — [`2026-08-21-smart-routing-m4-slice.md`](../superpowers/plans/2026-08-21-smart-routing-m4-slice.md) |
+| **M4** | Library | **Review APPROVED** — `smart_client.py`; 158 non-live tests; no merge/PR |
 | **M5** | AIN | Gated — bridge + readers |
 | **M6** | Both | Gated — soak |
 | **M7** | Both | Gated — GA |
@@ -201,13 +208,23 @@ When M5 is later authorized: construct `SmartClient`, inject readers, pass `tier
 Bring into the library repo (this revision):
 
 - `docs/decisions/2026-08-21-smart-routing-experimental-layer.md`
+- `docs/decisions/2026-08-21-m1-m3-ranking-contract-signoff.md`
+- `docs/decisions/2026-08-21-m4-smartclient-authorization.md`
+- `docs/superpowers/plans/2026-08-21-smart-routing-m4-slice.md`
 - `docs/proposals/2026-08-18-smart-routing-free-tiers-design.md` (revised)
 - `docs/proposals/2026-08-21-smart-routing-session-handoff.md` (this file)
 - Cross-links in freeze ADR, `design.md`, README
 
-**Written spec review = PASS (2026-08-21).** M1–M3 may proceed from the plan below. Implementation of M4 is forbidden until the M1–M3 ranking-contract review.
+**Written spec review = PASS (2026-08-21).**  
+**Ranking-contract architecture review = PASS (2026-08-21).** Contract approved as M4 input boundary.  
+**M4 authorization = YES (2026-08-21).** Invariants frozen.  
+**M4 slice = DEFINED (2026-08-21).**  
+**M4 coding = COMPLETE FOR REVIEW (2026-08-21).** `smart_client.py` exists; `pytest -m "not live"` 158 passed.  
+**M4 implementation review = APPROVED (2026-08-21).** See [`2026-08-21-m4-implementation-review.md`](../decisions/2026-08-21-m4-implementation-review.md).
 
-**M1–M3 implementation plan (authorized):** [`docs/superpowers/plans/2026-08-21-smart-routing-m1-m3.md`](../superpowers/plans/2026-08-21-smart-routing-m1-m3.md)
+No merge, push, PR, M5, M6, or M7 from this review. The next deliberate action is a **separate merge/push/PR authorization**, if and when opened.
+
+**M1–M3 implementation plan (complete):** [`docs/superpowers/plans/2026-08-21-smart-routing-m1-m3.md`](../superpowers/plans/2026-08-21-smart-routing-m1-m3.md)
 
 **M1–M3 code (this branch):** catalog, pool, prefilter, lockout, classifier, scoring, LKGP, and `rank_candidates` are implemented on this branch. Freeze guards live in `tests/test_smart_routing_freeze.py` (skips `tier_routing` only when `path == routing/chain.py` — frozen 0.1.0 Client chain).
 
@@ -222,20 +239,28 @@ Context: multiprovider-llm v0.2 smart routing — architect-revised 2026-08-21.
 
 Read first:
 1. docs/decisions/2026-08-21-smart-routing-experimental-layer.md (controlling ADR)
-2. docs/proposals/2026-08-21-smart-routing-session-handoff.md (this handoff)
-3. docs/proposals/2026-08-18-smart-routing-free-tiers-design.md (revised design)
-4. docs/decisions/2026-08-15-architecture-freeze-0.1.0.md (not reopened)
+2. docs/decisions/2026-08-21-m1-m3-ranking-contract-signoff.md (ranking contract APPROVED)
+3. docs/decisions/2026-08-21-m4-smartclient-authorization.md (M4 YES; invariants frozen)
+4. docs/superpowers/plans/2026-08-21-smart-routing-m4-slice.md
+5. docs/decisions/2026-08-21-m4-implementation-review.md (M4 code APPROVED; merge not authorized)
+6. docs/proposals/2026-08-21-smart-routing-session-handoff.md (this handoff)
+7. docs/proposals/2026-08-18-smart-routing-free-tiers-design.md (revised design)
+8. docs/decisions/2026-08-15-architecture-freeze-0.1.0.md (not reopened)
 
 Constraints:
 - Client always chain; SmartClient always smart; no routing_mode on Client.complete()
 - D9: no AIN tier_routing in library scoring; tier_fit = catalog.tier_affinity[tier]
 - Generic ProviderCatalog; monthly_tokens is static, not quota
-- M1–M3 only until architecture review; do not implement SmartClient yet
+- RankedTarget is ranking-only; M4 joins (provider, model) → Candidate
+- pool_key stays off Candidate; QuotaReader interprets it
+- SmartClient uses classify_error; Client keeps is_retryable
+- score is comparative; 0.0 is not unhealthy
+- M1–M3 signed off; M4 implemented on this branch; do not merge/push/PR unless explicitly asked
 - no OAuth, no bandit, no OmniRoute dependency, no prompt-text routing, no Redis, no TPM, no named presets
 - artifact-store stays cancelled
 - docs split by repo — do not duplicate full specs
 
-Current task: [FILL IN — e.g. "review the revised spec" or "implement M1 catalog"]
+Current task: [FILL IN — e.g. "authorize merge/PR" — not automatic]
 ```
 
 ---
@@ -248,10 +273,16 @@ Current task: [FILL IN — e.g. "review the revised spec" or "implement M1 catal
 - [x] D9 — no AIN `tier_routing` in scoring
 - [x] Dual cooldown — AIN disk authoritative; library in-process + injected readers
 - [x] D1–D9 resolved
-- [x] M1–M3 authorized; M4 gated
 - [x] 0.1.0 freeze not reopened
 - [x] Written spec reviewed in-repo before M1 coding starts
-- [x] M1–M3 code complete; candidate/ranking contract ready for architect review
+- [x] M1–M3 authorized; ranking contract signed off
+- [x] Ranking-contract architecture review **APPROVED** as M4 input boundary (2026-08-21)
+- [x] M4 (`SmartClient`) **authorized** (2026-08-21) — invariants frozen
+- [x] M4 implementation slice + acceptance gates **defined** (2026-08-21)
+- [x] `smart_client.py` — implemented; gates 1–21 green on non-live suite
+- [x] M4 implementation review **APPROVED** (2026-08-21)
+- [ ] merge / push / PR — not authorized
+- [ ] M5 / M6 / M7 — gated
 
 ---
 

@@ -7,6 +7,12 @@ from typing import Literal
 
 @dataclass(frozen=True)
 class Candidate:
+    """Executable target identity for ranking and (later) dispatch.
+
+    Does not carry ``pool_key``. Shared-quota identity lives in catalog
+    data and is interpreted by ``QuotaReader``.
+    """
+
     provider: str
     model: str
     adapter: Literal["gemini", "anthropic", "openai_compat"]
@@ -62,6 +68,18 @@ class ScoringFactors:
 
 @dataclass(frozen=True)
 class RankedTarget:
+    """Ranking decision for one executable target.
+
+    Join back to a ``Candidate`` with ``(provider, model)`` for dispatch
+    (adapter, ``base_url``, ``http_referer``). This type does not carry
+    execution configuration.
+
+    ``score`` is comparative ranking information among the eligible set,
+    not an absolute quality rating. A lone eligible candidate may score
+    ``0.0`` after constant factors are dropped; that does not mean the
+    provider is unhealthy.
+    """
+
     provider: str
     model: str
     score: float
@@ -80,5 +98,12 @@ class RoutingDiagnostics:
 
 @dataclass(frozen=True)
 class RankingResult:
+    """Output of ``rank_candidates`` — the M4 input boundary.
+
+    ``ranked_targets`` are ranking decisions. Execution still requires the
+    originating ``Candidate`` pool. ``diagnostics.ranked_targets`` is the
+    same ordered list (post-LKGP).
+    """
+
     ranked_targets: tuple[RankedTarget, ...]
     diagnostics: RoutingDiagnostics

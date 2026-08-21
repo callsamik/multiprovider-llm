@@ -1,7 +1,6 @@
+from importlib import import_module
+
 from .chain import is_auth_failure, is_retryable, resolve_chain, resolve_model
-from .pool import build_candidate_pool, default_enabled_providers
-from .rank import rank_candidates
-from .types import Candidate, RankedTarget, RankingResult, RoutingDiagnostics
 
 __all__ = [
     "Candidate",
@@ -16,3 +15,22 @@ __all__ = [
     "resolve_chain",
     "resolve_model",
 ]
+
+_LAZY = {
+    "Candidate": ".types",
+    "RankedTarget": ".types",
+    "RankingResult": ".types",
+    "RoutingDiagnostics": ".types",
+    "build_candidate_pool": ".pool",
+    "default_enabled_providers": ".pool",
+    "rank_candidates": ".rank",
+}
+
+
+def __getattr__(name: str):
+    module_name = _LAZY.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(module_name, __package__), name)
+    globals()[name] = value
+    return value
