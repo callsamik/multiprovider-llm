@@ -58,3 +58,12 @@ class ScoringFactors:
     latency_inv: float
     tier_fit: float
     cost_inv: float
+
+
+@dataclass(frozen=True)
+class RankedTarget:
+    provider: str
+    model: str
+    score: float
+    factors: ScoringFactors
+    rank: int
