@@ -1,7 +1,7 @@
 # Session handoff: Smart routing experimental layer (v0.2, architect-revised)
 
 **Date:** 2026-08-21  
-**Status:** Architect-revised; **M1–M3 authorized**; implementation not started; **no v0.2 PR**  
+**Status:** Architect-revised; **M1–M3 implemented on this branch**, awaiting ranking-contract architecture review; **M4 gated / STOPPED**; **no v0.2 PR**  
 **Use:** Attach this file to a new AI session to resume without prior chat context.
 
 ---
@@ -65,7 +65,9 @@ Smart routing is **approved in principle** as an evidence-triggered **experiment
 
 ---
 
-## 5. Approved direction (not implemented)
+## 5. Approved direction (M1–M3 implemented; M4 gated)
+
+M1–M3 ranking primitives are implemented on this branch. Architect review of the ranking contract is required before M4 (`SmartClient`).
 
 ### Controlling principle
 
@@ -148,9 +150,9 @@ When M5 is later authorized: construct `SmartClient`, inject readers, pass `tier
 
 | Milestone | Owner | Status |
 | :--- | :--- | :--- |
-| **M1** | Library | **Authorized** — catalog, pool, credential/freshness/free filters |
-| **M2** | Library | **Authorized** — lockout, error classifier, prefilter |
-| **M3** | Library | **Authorized** — scoring, LKGP, `QuotaReader` |
+| **M1** | Library | **Implemented (this branch)** — catalog, pool, credential/freshness/free filters; awaiting ranking-contract architecture review |
+| **M2** | Library | **Implemented (this branch)** — lockout, error classifier, prefilter; awaiting ranking-contract architecture review |
+| **M3** | Library | **Implemented (this branch)** — scoring, LKGP, `QuotaReader`; awaiting ranking-contract architecture review |
 | **Review** | Architect | **Required** before M4 |
 | **M4** | Library | Gated — `SmartClient` |
 | **M5** | AIN | Gated — bridge + readers |
@@ -207,7 +209,7 @@ Bring into the library repo (this revision):
 
 **M1–M3 implementation plan (authorized):** [`docs/superpowers/plans/2026-08-21-smart-routing-m1-m3.md`](../superpowers/plans/2026-08-21-smart-routing-m1-m3.md)
 
-**M1–M3 code (this branch):** catalog, pool, prefilter, lockout, classifier, scoring, LKGP, and `rank_candidates` are implemented on this branch. Freeze guards live in `tests/test_smart_routing_freeze.py` (skips `routing/chain.py` for `tier_routing` only — frozen 0.1.0 Client chain).
+**M1–M3 code (this branch):** catalog, pool, prefilter, lockout, classifier, scoring, LKGP, and `rank_candidates` are implemented on this branch. Freeze guards live in `tests/test_smart_routing_freeze.py` (skips `tier_routing` only when `path == routing/chain.py` — frozen 0.1.0 Client chain).
 
 AIN integration spec should be updated (in the AIN repo) to remove any `tier_routing` → library scoring language when that repo is available.
 

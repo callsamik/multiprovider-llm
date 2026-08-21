@@ -22,6 +22,7 @@ def test_smart_client_module_does_not_exist():
 
 def test_experimental_modules_do_not_mention_ain_tier_routing():
     root = Path(__file__).resolve().parents[1] / "src" / "multiprovider_llm"
+    chain_py = root / "routing" / "chain.py"
     hits = []
     paths = (
         list((root / "catalog").rglob("*.py"))
@@ -30,11 +31,11 @@ def test_experimental_modules_do_not_mention_ain_tier_routing():
     )
     for path in paths:
         text = path.read_text(encoding="utf-8")
+        rel = path.relative_to(root)
         for needle in ("routing_mode", "routing_prior"):
             if needle in text:
-                hits.append(f"{path.name}:{needle}")
+                hits.append(f"{rel}:{needle}")
         # tier_routing is legitimate in frozen chain.py (0.1.0 Client tier order).
-        if needle := "tier_routing":
-            if needle in text and path.name != "chain.py":
-                hits.append(f"{path.name}:{needle}")
+        if "tier_routing" in text and path != chain_py:
+            hits.append(f"{rel}:tier_routing")
     assert hits == []
