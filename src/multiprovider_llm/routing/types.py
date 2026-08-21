@@ -67,3 +67,18 @@ class RankedTarget:
     score: float
     factors: ScoringFactors
     rank: int
+
+
+@dataclass(frozen=True)
+class RoutingDiagnostics:
+    pool_size: int
+    filtered_size: int
+    ranked_targets: tuple[RankedTarget, ...]
+    lkgp_promoted: bool
+    filter_notes: tuple[FilterNote, ...]
+
+
+@dataclass(frozen=True)
+class RankingResult:
+    ranked_targets: tuple[RankedTarget, ...]
+    diagnostics: RoutingDiagnostics
