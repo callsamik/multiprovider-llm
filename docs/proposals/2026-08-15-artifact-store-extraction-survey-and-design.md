@@ -12,6 +12,10 @@ Not required for `multiprovider-llm`. AIN already ships `ain.knowledge_base`. No
 reuse demand or contract deficiency warrants extracting a standalone package.
 See the resolved design’s cancellation banner for the same decision.
 
+**2026-08-21:** The smart-routing experimental layer does **not** reopen this.
+Smart routing needs a static catalog, process-local metrics/lockout, and injected
+quota/cooldown readers — not an artifact repository.
+
 ## 1. Executive summary
 
 AIN already has a small, useful artifact repository in `ain.knowledge_base`:

@@ -13,6 +13,12 @@ Multi-provider LLM client with tier routing, fallback chains, and per-provider /
 | **[Tutorial](docs/tutorial.md)** | How to use, configure, connect new agents, and write custom adapters |
 | [Design](docs/design.md) | Approved v1 + v1.1 contracts |
 | **[0.1.0 architecture freeze (ADR)](docs/decisions/2026-08-15-architecture-freeze-0.1.0.md)** | Q1–Q10 decisions — stop building unless a real caller needs it |
+| **[Smart routing experimental layer (ADR)](docs/decisions/2026-08-21-smart-routing-experimental-layer.md)** | v0.2 approved in principle; M1–M3 signed off; M4 authorized |
+| **[M1–M3 ranking-contract sign-off](docs/decisions/2026-08-21-m1-m3-ranking-contract-signoff.md)** | Contract approved as M4 input boundary |
+| **[M4 SmartClient authorization](docs/decisions/2026-08-21-m4-smartclient-authorization.md)** | M4 yes; invariants frozen |
+| **[M4 implementation review](docs/decisions/2026-08-21-m4-implementation-review.md)** | M4 code APPROVED; merge/M5–M7 not authorized |
+| [Smart routing design](docs/proposals/2026-08-18-smart-routing-free-tiers-design.md) | Architect-revised catalog / ranking spec |
+| [Smart routing session handoff](docs/proposals/2026-08-21-smart-routing-session-handoff.md) | Portable resume file for v0.2 work |
 | [Architecture review pack](docs/architecture-review-pack-2026-08-15.md) | As-built critique input (superseded by the ADR for decisions) |
 | [Plan](docs/plan.md) | Implementation task history |
 | [Article](docs/medium-article.md) | Design and implementation write-up |
@@ -34,6 +40,7 @@ The following remain **experimental** (may change; do not treat as frozen 0.1.0 
 - **`Limiter` protocol** and the default in-memory implementation (`InMemoryLimiter`).
 - **`CompletionHooks` protocol** — optional observability callbacks; hook exceptions are swallowed.
 - **`on_auth_failure`** — shipped opt-in policy knob; default remains `"stop"`.
+- **Smart routing (v0.2, not shipped)** — generic `ProviderCatalog`, ranking, LKGP, model lockout as a separate `SmartClient`. Frozen `Client` stays chain-only. See the [2026-08-21 ADR](docs/decisions/2026-08-21-smart-routing-experimental-layer.md).
 
 ## Limits (honest contract)
 

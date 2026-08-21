@@ -1,7 +1,7 @@
 # multiprovider-llm — Design Spec (v1)
 
 **Status:** v1 implemented; **architecture frozen toward 0.1.0** ([ADR](decisions/2026-08-15-architecture-freeze-0.1.0.md), 2026-08-15)  
-**Date:** 2026-08-14 (freeze addendum 2026-08-15)  
+**Date:** 2026-08-14 (freeze addendum 2026-08-15; smart-routing experimental layer 2026-08-21)  
 **Package:** `multiprovider-llm` (import: `multiprovider_llm`)  
 **Scope:** Greenfield private library. No coupling to Autonomous Investment Navigator (AIN) in v1.
 
@@ -294,6 +294,8 @@ multiprovider-llm/
 ```
 
 **Experimental (README-labeled until stabilized):** config schema, `Limiter` protocol, `CompletionHooks` protocol.
+
+**Experimental v0.2 layer (not in this v1 contract):** smart routing — generic `ProviderCatalog`, ranking, LKGP, model lockout — lives beside frozen `Client`, not inside it. M1–M3 ranking contract is signed off; M4 (`SmartClient`) implementation review is **APPROVED** (no merge/PR; M5–M7 gated). See [smart-routing ADR](decisions/2026-08-21-smart-routing-experimental-layer.md), [ranking-contract sign-off](decisions/2026-08-21-m1-m3-ranking-contract-signoff.md), and [M4 authorization](decisions/2026-08-21-m4-smartclient-authorization.md). Does not reopen the 0.1.0 freeze.
 
 **v1.1 (shipped, opt-in):** `on_auth_failure` call kwarg; optional `CompletionHooks` on `Client` / `AsyncClient` construction. Does not replace `CompletionResult.attempts`.
 

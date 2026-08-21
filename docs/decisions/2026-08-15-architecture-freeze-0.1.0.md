@@ -65,3 +65,7 @@ One limiter instance controls **one process**. Multiple processes require caller
 - Next library change requires a real caller need, concrete failure, or evidence — not a roadmap item.
 - Callers that previously passed `max_tokens_per_minute` in config must remove it (it never enforced anything).
 - AIN pin / tests that construct `ProviderLimit(..., max_tokens_per_minute=...)` must be updated when bumping the library pin.
+
+## Later evidence-triggered layer (does not reopen this freeze)
+
+On 2026-08-21, AIN Layer 21 was accepted as real-caller evidence for an **experimental** smart-routing layer **above** this frozen core. Q1–Q10 and the frozen `Client` contract are unchanged. See [`2026-08-21-smart-routing-experimental-layer.md`](2026-08-21-smart-routing-experimental-layer.md). M1–M3 ranking contract signed off; M4 implementation review **APPROVED** ([review ADR](2026-08-21-m4-implementation-review.md)). Merge/push/PR and this freeze are unchanged.

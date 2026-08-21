@@ -11,7 +11,8 @@
 Not required for `multiprovider-llm` (LLM call execution only). AIN already owns
 an append-only Research Knowledge Base (`ain.knowledge_base`). No second consumer
 or OV/contract gap justifies a standalone extraction. Do **not** schedule a new
-repo, AIN adapter cutover, or library packaging work from this doc.
+repo, AIN adapter cutover, or library packaging work from this doc. The
+2026-08-21 smart-routing experimental layer does not reopen this.
 
 ---
 
