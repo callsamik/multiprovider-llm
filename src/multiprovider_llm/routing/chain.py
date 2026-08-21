@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import httpx
 
-from .config import LibraryConfig
-from .errors import (
+from ..config import LibraryConfig
+from ..errors import (
     BudgetExceeded,
     ConfigError,
     ProviderError,
