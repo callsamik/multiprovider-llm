@@ -1,6 +1,6 @@
 import pytest
 
-from multiprovider_llm.catalog import ProviderCatalogEntry, load_catalog_from_mapping
+from multiprovider_llm.catalog import ProviderCatalogEntry, load_catalog, load_catalog_from_mapping
 from multiprovider_llm.errors import ConfigError
 
 
@@ -81,3 +81,30 @@ def test_affinity_out_of_range_raises():
         load_catalog_from_mapping(
             {"catalog_id": "t", "entries": [_entry(tier_affinity={"standard": 1.5})]}
         )
+
+
+def test_builtin_catalog_size_and_id():
+    catalog = load_catalog()
+    assert catalog.catalog_id == "builtin:providers_v1"
+    assert 20 <= len(catalog.entries) <= 30
+
+
+def test_builtin_catalog_has_no_oauth_auth():
+    catalog = load_catalog()
+    assert {e.auth for e in catalog.entries} <= {"api_key", "none"}
+
+
+def test_builtin_catalog_adapters_are_generic():
+    catalog = load_catalog()
+    assert {e.adapter for e in catalog.entries} <= {"gemini", "anthropic", "openai_compat"}
+
+
+def test_builtin_includes_local_stale_and_paid_disabled_defaults():
+    catalog = load_catalog()
+    ollama = [e for e in catalog.entries if e.provider == "ollama"]
+    assert ollama
+    assert all(e.freshness_ok is False and e.auth == "none" for e in ollama)
+    paid_default_off = [
+        e for e in catalog.entries if e.cost_tier == "paid" and e.enabled_by_default is False
+    ]
+    assert paid_default_off
